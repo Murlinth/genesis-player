@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Genesis – Jacob Aird</title>
+<title>Jacob Aird</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -16,6 +16,26 @@
     font-family: "Roboto", Arial, sans-serif; font-size: 16px; line-height: 1.4;
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Album browser */
+  .albums-wrap { border-bottom: 1px solid var(--line); padding: 16px; background: var(--bg); }
+  .albums { max-width: 560px; margin: 0 auto; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .album {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 10px 10px 12px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--line); border-radius: 4px; box-shadow: none;
+    font: 400 .9rem "Roboto", Arial, sans-serif; text-align: center; cursor: pointer;
+  }
+  .album[aria-pressed="true"] { background: var(--head); }
+  @media (hover: hover) { .album[aria-pressed="false"]:hover { background: #f3fafd; } }
+  .thumb {
+    display: block; width: 100%; max-width: 130px; aspect-ratio: 1 / 1; object-fit: cover; margin-bottom: 6px;
+    background: #fff; border: 1px solid var(--line); border-radius: 4px;
+    -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none;
+  }
+  .album .at { font-family: "Baloo 2", "Roboto", sans-serif; font-weight: 800; font-size: 1.1rem; line-height: 1.15; }
+  .album .aa, .album .ac { font-size: .85rem; }
+
   header {
     background: var(--head); border-bottom: 1px solid var(--line);
     padding: 28px 16px 24px; text-align: center;
@@ -26,8 +46,10 @@
     border: 1px solid var(--line); border-radius: 4px;
     -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none;
   }
+  .cover.missing, .thumb.missing { color: transparent; }
+  .cover.missing, .thumb.missing { visibility: visible; background: #fff; }
   h1, h2 { font-family: "Baloo 2", "Roboto", sans-serif; font-weight: 800; margin: 0; }
-  h1 { font-size: clamp(2.4rem, 10vw, 3.5rem); line-height: 1; }
+  h1 { font-size: clamp(2.2rem, 9vw, 3.3rem); line-height: 1.05; }
   .artist { margin: 6px 0 0; font-size: 1.15rem; }
 
   main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -82,10 +104,14 @@
 </style>
 </head>
 <body>
+<div class="albums-wrap">
+  <nav class="albums" id="albums" aria-label="Albums"></nav>
+</div>
+
 <header>
-  <img class="cover" src="cover.png" alt="Genesis album cover" draggable="false">
-  <h1>Genesis</h1>
-  <p class="artist">Jacob Aird</p>
+  <img class="cover" id="cover" alt="" draggable="false">
+  <h1 id="title"></h1>
+  <p class="artist" id="artist"></p>
 </header>
 
 <main id="player">
@@ -122,23 +148,62 @@
 (function () {
   "use strict";
 
-  var TRACKS = [
-    { title: "Family Medley", len: "2:48" },
-    { title: "Light of Christ (Orchestra)", len: "3:06" },
-    { title: "He is the Plan", len: "4:11" },
-    { title: "All Over Again", len: "4:06" },
-    { title: "Heaven Medley", len: "4:51" },
-    { title: "Mother I Love You", len: "0:56" },
-    { title: "His Kingdom (Full Instrumental)", len: "2:48" }
-  ].map(function (t, i) {
-    var p = t.len.split(":");
-    t.file = "track" + (i + 1) + ".mp3";
-    t.secs = parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
-    return t;
-  });
+  /* ---------------------------------------------------------------
+     ALBUMS: to add another album, add one more album(...) entry below.
+     album(id, title, artist, coverFile, audioFilePrefix, numberPadding, [[title, "m:ss"], ...])
+     e.g. prefix "hs" + padding 2 -> hs01.mp3, hs02.mp3, ...
+     --------------------------------------------------------------- */
+  function album(id, title, artist, cover, prefix, pad, rows) {
+    return {
+      id: id, title: title, artist: artist, cover: cover,
+      tracks: rows.map(function (r, i) {
+        var n = String(i + 1);
+        while (n.length < pad) n = "0" + n;
+        var p = r[1].split(":");
+        return { title: r[0], len: r[1], file: prefix + n + ".mp3", secs: parseInt(p[0], 10) * 60 + parseInt(p[1], 10) };
+      })
+    };
+  }
+
+  var ALBUMS = [
+    album("genesis", "Genesis", "Jacob Aird", "cover.png", "track", 1, [
+      ["Family Medley", "2:48"],
+      ["Light of Christ (Orchestra)", "3:06"],
+      ["He is the Plan", "4:11"],
+      ["All Over Again", "4:06"],
+      ["Heaven Medley", "4:51"],
+      ["Mother I Love You", "0:56"],
+      ["His Kingdom (Full Instrumental)", "2:48"]
+    ]),
+    album("highschool", "Jacob in Highschool", "Jacob Aird", "hs-cover.png", "hs", 2, [
+      ["Mister Macagorian", "1:20"],
+      ["Tect Song", "1:25"],
+      ["Big Foot", "3:07"],
+      ["Tag Wars", "1:13"],
+      ["Ghost Boy", "1:31"],
+      ["Thanksgiving At My Home", "3:13"],
+      ["Wizard\u2019s Bar", "2:36"],
+      ["One Last Pawn", "2:29"],
+      ["Tank\u2019s Day Off", "0:39"],
+      ["Possibilities", "1:34"],
+      ["Ardent Breezes", "0:55"],
+      ["Linner", "2:55"],
+      ["Rise of the Linths", "1:51"],
+      ["Pendulum", "3:14"],
+      ["Liven\u2019 on Mars", "1:20"],
+      ["As the Moon Sets", "1:19"],
+      ["Hear It", "3:03"],
+      ["I Just Don\u2019t Like Halloween", "1:40"],
+      ["Planet", "1:45"],
+      ["Christmas Lights", "2:15"],
+      ["Doodle Worlds", "1:37"],
+      ["The Messenger", "3:48"]
+    ])
+  ];
 
   var $ = function (id) { return document.getElementById(id); };
   var els = {
+    albums: $("albums"), cover: $("cover"), title: $("title"), artist: $("artist"),
     now: $("now"), bar: $("bar"), fill: $("fill"), cur: $("cur"), tot: $("tot"),
     prev: $("prev"), play: $("play"), next: $("next"), icon: $("icon"),
     status: $("status"), vol: $("vol"), list: $("list")
@@ -150,10 +215,14 @@
   audio.preload = "auto";
   audio.volume = parseFloat(els.vol.value);
 
-  var cache = {};                   // index -> Promise<blob URL>
-  var current = 0;                  // selected track
-  var loaded = -1;                  // track whose blob is in the audio element
+  var cache = {};                   // "albumId:index" -> Promise<blob URL>
+  var albumIdx = 0;                 // selected album
+  var current = 0;                  // selected track within that album
+  var loaded = -1;                  // track whose blob is in the audio element (-1 = none)
   var token = 0;                    // guards against out-of-order loads
+
+  function A() { return ALBUMS[albumIdx]; }
+  function T() { return A().tracks[current]; }
 
   function fmt(s) {
     if (!isFinite(s) || s < 0) s = 0;
@@ -163,9 +232,10 @@
   function setStatus(msg) { els.status.textContent = msg || ""; }
 
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
-  function getUrl(i) {
-    if (!cache[i]) {
-      var p = fetch(TRACKS[i].file)
+  function getUrl(a, i) {
+    var key = a.id + ":" + i;
+    if (!cache[key]) {
+      var p = fetch(a.tracks[i].file)
         .then(function (r) {
           if (!r.ok) throw new Error("HTTP " + r.status);
           return r.blob();
@@ -173,14 +243,42 @@
         .then(function (b) {
           return URL.createObjectURL(new Blob([b], { type: "audio/mpeg" }));
         });
-      p.catch(function () { delete cache[i]; });
-      cache[i] = p;
+      p.catch(function () { delete cache[key]; });
+      cache[key] = p;
     }
-    return cache[i];
+    return cache[key];
+  }
+
+  // Images: a missing file leaves a plain empty frame instead of a broken-image icon
+  function setImage(img, src) {
+    img.classList.remove("missing");
+    img.src = src;
+  }
+  function watchImage(img) {
+    img.addEventListener("error", function () { img.classList.add("missing"); img.removeAttribute("alt"); });
+  }
+
+  function buildAlbums() {
+    ALBUMS.forEach(function (a, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "album";
+      b.setAttribute("aria-pressed", "false");
+      b.innerHTML = '<img class="thumb" alt="" draggable="false"><span class="at"></span><span class="aa"></span><span class="ac"></span>';
+      var img = b.querySelector(".thumb");
+      watchImage(img);
+      setImage(img, a.cover);
+      b.querySelector(".at").textContent = a.title;
+      b.querySelector(".aa").textContent = a.artist;
+      b.querySelector(".ac").textContent = a.tracks.length + (a.tracks.length === 1 ? " track" : " tracks");
+      b.addEventListener("click", function () { selectAlbum(i); });
+      els.albums.appendChild(b);
+    });
   }
 
   function buildList() {
-    TRACKS.forEach(function (t, i) {
+    els.list.innerHTML = "";
+    A().tracks.forEach(function (t, i) {
       var li = document.createElement("li");
       var b = document.createElement("button");
       b.type = "button";
@@ -195,6 +293,18 @@
     });
   }
 
+  function renderAlbum() {
+    var a = A();
+    setImage(els.cover, a.cover);
+    els.cover.alt = a.title + " album cover";
+    els.title.textContent = a.title;
+    els.artist.textContent = a.artist;
+    var cards = els.albums.querySelectorAll(".album");
+    for (var i = 0; i < cards.length; i++) cards[i].setAttribute("aria-pressed", i === albumIdx ? "true" : "false");
+    buildList();
+    render();
+  }
+
   function render() {
     var rows = els.list.querySelectorAll(".track");
     for (var i = 0; i < rows.length; i++) {
@@ -203,14 +313,14 @@
       if (on) rows[i].setAttribute("aria-current", "true");
       else rows[i].removeAttribute("aria-current");
     }
-    els.now.textContent = TRACKS[current].title;
-    document.title = TRACKS[current].title + " – Genesis – Jacob Aird";
+    els.now.textContent = T().title;
+    document.title = T().title + " \u2013 " + A().title + " \u2013 " + A().artist;
     updateTime();
   }
 
   function duration() {
     if (loaded === current && isFinite(audio.duration) && audio.duration > 0) return audio.duration;
-    return TRACKS[current].secs;
+    return T().secs;
   }
 
   function updateTime() {
@@ -232,15 +342,32 @@
     if ("mediaSession" in navigator) navigator.mediaSession.playbackState = playing ? "playing" : "paused";
   }
 
+  // Switch albums: stop playback and reset the whole player
+  function selectAlbum(i) {
+    if (i === albumIdx) return;
+    token++;                         // cancel any load still in flight
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    albumIdx = i;
+    current = 0;
+    loaded = -1;
+    setStatus("");
+    if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+    renderAlbum();
+    updateButton();
+  }
+
   function select(i, autoplay) {
     var my = ++token;
+    var a = A();
     current = i;
     audio.pause();
     loaded = -1;
     render();
     updateButton();
-    setStatus("Loading…");
-    getUrl(i).then(function (url) {
+    setStatus("Loading\u2026");
+    getUrl(a, i).then(function (url) {
       if (my !== token) return;
       audio.src = url;
       loaded = i;
@@ -248,16 +375,16 @@
       updateTime();
       if ("mediaSession" in navigator && window.MediaMetadata) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: TRACKS[i].title, artist: "Jacob Aird", album: "Genesis"
+          title: a.tracks[i].title, artist: a.artist, album: a.title
         });
       }
-      if (i + 1 < TRACKS.length) getUrl(i + 1).catch(function () {});   // warm the next track
+      if (i + 1 < a.tracks.length) getUrl(a, i + 1).catch(function () {});   // warm the next track
       if (autoplay) return audio.play();
     }).catch(function (e) {
       if (my !== token) return;
       if (e && e.name === "AbortError") return;
       if (e && e.name === "NotAllowedError") { setStatus("Press play to start."); updateButton(); return; }
-      setStatus("This track could not be loaded. Check that track" + (i + 1) + ".mp3 is in the same folder and the page is served from a web server.");
+      setStatus("This track could not be loaded. Check that " + a.tracks[i].file + " is in the same folder and the page is served from a web server.");
       updateButton();
     });
   }
@@ -267,7 +394,7 @@
     if (audio.paused) audio.play().catch(function () {});
     else audio.pause();
   }
-  function next() { if (current < TRACKS.length - 1) select(current + 1, true); }
+  function next() { if (current < A().tracks.length - 1) select(current + 1, true); }
   function prev() {
     if (loaded === current && audio.currentTime > 3) { audio.currentTime = 0; return; }
     if (current > 0) select(current - 1, true);
@@ -309,11 +436,11 @@
   audio.addEventListener("play", updateButton);
   audio.addEventListener("pause", updateButton);
   audio.addEventListener("ended", function () {
-    if (current < TRACKS.length - 1) next();
+    if (current < A().tracks.length - 1) next();
     else { audio.currentTime = 0; updateButton(); updateTime(); }
   });
   audio.addEventListener("error", function () {
-    if (loaded === current) setStatus("This track could not be played.");
+    if (loaded === current && audio.getAttribute("src")) setStatus("This track could not be played.");
   });
 
   // Space bar toggles play/pause when nothing else has focus
@@ -332,12 +459,13 @@
     } catch (_) {}
   }
 
-  // Basic deterrents: no context menu, no dragging of the cover
+  // Basic deterrents: no context menu, no dragging of images
   document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   document.addEventListener("dragstart", function (e) { e.preventDefault(); });
 
-  buildList();
-  render();
+  watchImage(els.cover);
+  buildAlbums();
+  renderAlbum();
   updateButton();
 })();
 </script>
