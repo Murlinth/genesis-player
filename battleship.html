@@ -79,50 +79,147 @@
             70% { box-shadow: 0 0 0 10px rgba(156, 163, 175, 0); }
             100% { box-shadow: 0 0 0 0 rgba(156, 163, 175, 0); }
         }
+        /* Board prominence (the board being shot at is the big one) */
+        .board-wrap {
+            transition: max-width 0.35s ease, opacity 0.35s ease, box-shadow 0.35s ease;
+            border-radius: 0.75rem;
+        }
+        .board-wrap.prominent {
+            box-shadow: 0 0 0 4px #93c5fd, 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .board-wrap.secondary {
+            opacity: 0.92;
+        }
+        /* "Your turn!" banner */
+        #turn-banner {
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        #turn-banner.banner-hidden {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+<body class="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100 overflow-x-hidden">
     <main class="w-full max-w-4xl p-6 bg-white rounded-xl shadow-2xl">
-        <h1 class="text-4xl font-bold text-center mb-6 text-gray-800">Battleship</h1>
-        <div class="flex flex-col md:flex-row justify-center items-center gap-8 mb-6">
-            <!-- Player Board -->
-            <div class="flex-1 w-full flex flex-col items-center">
-                <h2 class="text-xl font-semibold mb-2 text-gray-700">Your Board</h2>
-                <div id="player-board" class="board w-full max-w-sm rounded-lg overflow-hidden border-2 border-gray-400">
+        <div class="flex items-center justify-between gap-4 mb-2">
+            <h1 class="text-4xl font-bold text-center text-gray-800 flex-1">Battleship</h1>
+            <button id="sound-toggle" class="px-4 py-2 bg-blue-100 text-blue-900 font-semibold rounded-full shadow hover:bg-blue-200 transition-all whitespace-nowrap">🔊 Sound On</button>
+        </div>
+
+        <!-- Turn banner -->
+        <div id="turn-banner" class="banner-hidden text-center text-2xl font-bold text-white bg-green-600 rounded-full py-2 px-4 mb-4 shadow-lg">Your turn!</div>
+
+        <!-- ============ START / MODE SCREEN ============ -->
+        <section id="menu-screen" class="flex flex-col items-center gap-4 py-4">
+            <p class="text-lg font-medium text-gray-600 text-center">Choose how to play:</p>
+            <button id="mode-1p" class="w-full max-w-sm px-6 py-4 bg-green-600 text-white font-bold text-xl rounded-full shadow-lg hover:bg-green-700 transition-all duration-300 transform hover:scale-105">1 Player</button>
+            <button id="mode-local" class="w-full max-w-sm px-6 py-4 bg-blue-600 text-white font-bold text-xl rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105">2 Players — Same Phone</button>
+            <button id="mode-online" class="w-full max-w-sm px-6 py-4 bg-purple-600 text-white font-bold text-xl rounded-full shadow-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105">2 Players — Online</button>
+            <p class="text-sm text-gray-500 text-center max-w-sm">Same Phone: pass the phone back and forth. Online: you and a friend each use your own phone with a shared game code.</p>
+        </section>
+
+        <!-- ============ ONLINE SETUP SCREEN ============ -->
+        <section id="online-screen" class="hidden flex-col items-center gap-4 py-4">
+            <h2 class="text-2xl font-bold text-gray-800">Play Online</h2>
+            <p class="text-gray-600 text-center max-w-md">Both phones need this game open at the same time. One player creates a game and shares the code; the other player enters it.</p>
+            <button id="create-game-btn" class="w-full max-w-sm px-6 py-3 bg-purple-600 text-white font-bold text-lg rounded-full shadow-lg hover:bg-purple-700 transition-all">Create Game</button>
+            <div id="host-wait" class="hidden flex-col items-center gap-2 text-center">
+                <p class="text-gray-600">Your game code — share it with your friend:</p>
+                <p id="game-code-display" class="text-5xl font-bold tracking-widest text-purple-700"></p>
+                <p class="text-gray-500">Waiting for Player 2 to join…</p>
+            </div>
+            <div class="flex items-center gap-2 w-full max-w-sm">
+                <input id="join-code-input" type="text" maxlength="4" placeholder="CODE" class="flex-1 min-w-0 rounded-md border border-gray-300 p-3 text-center text-xl font-bold uppercase tracking-widest">
+                <button id="join-game-btn" class="px-5 py-3 bg-blue-600 text-white font-bold rounded-full shadow hover:bg-blue-700 transition-all whitespace-nowrap">Join Game</button>
+            </div>
+            <p id="online-status" class="text-md font-medium text-gray-600 text-center min-h-[1.5rem]"></p>
+            <button id="online-back-btn" class="px-5 py-2 bg-gray-200 text-gray-700 font-semibold rounded-full shadow hover:bg-gray-300 transition-all">← Back</button>
+        </section>
+
+        <!-- ============ GAME SCREEN ============ -->
+        <section id="game-screen" class="hidden">
+            <div class="flex flex-col md:flex-row justify-center items-center gap-8 mb-6">
+                <!-- Own Board -->
+                <div id="own-board-wrap" class="board-wrap flex-1 w-full flex flex-col items-center p-2" style="max-width:24rem;">
+                    <h2 id="own-board-title" class="text-xl font-semibold mb-2 text-gray-700">Your Board</h2>
+                    <div id="player-board" class="board w-full rounded-lg overflow-hidden border-2 border-gray-400">
+                    </div>
+                </div>
+                <!-- Target Board -->
+                <div id="target-board-wrap" class="board-wrap flex-1 w-full flex flex-col items-center p-2" style="max-width:24rem;">
+                    <h2 id="target-board-title" class="text-xl font-semibold mb-2 text-gray-700">Enemy Board</h2>
+                    <div id="enemy-board" class="board w-full rounded-lg overflow-hidden border-2 border-gray-400">
+                    </div>
                 </div>
             </div>
-            <!-- Enemy Board -->
-            <div class="flex-1 w-full flex flex-col items-center">
-                <h2 class="text-xl font-semibold mb-2 text-gray-700">Enemy Board</h2>
-                <div id="enemy-board" class="board w-full max-w-sm rounded-lg overflow-hidden border-2 border-gray-400">
+            <!-- Game Info & Controls -->
+            <div id="game-info" class="flex flex-col items-center gap-4">
+                <p id="turn-info" class="text-lg font-medium text-gray-600 text-center">Click "Start Game" to begin.</p>
+                <p id="wait-note" class="text-md font-medium text-amber-600 text-center hidden"></p>
+                <div id="difficulty-row" class="flex items-center gap-2">
+                    <label for="difficulty-selector" class="text-gray-700 font-semibold">Bot Difficulty:</label>
+                    <select id="difficulty-selector" class="rounded-md border border-gray-300 p-2">
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
                 </div>
+                <p id="player-status-info" class="text-md font-normal text-gray-500 hidden"></p>
+                <p id="bot-status-info" class="text-md font-normal text-gray-500 hidden"></p>
+                <button id="start-button" class="px-6 py-3 bg-green-600 text-white font-bold text-lg rounded-full shadow-lg hover:bg-green-700 transition-all duration-300 transform hover:scale-105">Start Game</button>
+                <button id="rematch-btn" class="hidden px-6 py-3 bg-blue-600 text-white font-bold text-lg rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105">Rematch</button>
+                <button id="menu-btn" class="px-5 py-2 bg-gray-200 text-gray-700 font-semibold rounded-full shadow hover:bg-gray-300 transition-all">← Back to Menu</button>
             </div>
-        </div>
-        <!-- Game Info & Controls -->
-        <div id="game-info" class="flex flex-col items-center gap-4">
-            <p id="turn-info" class="text-lg font-medium text-gray-600">Click "Start Game" to begin.</p>
-            <div class="flex items-center gap-2">
-                <label for="difficulty-selector" class="text-gray-700 font-semibold">Bot Difficulty:</label>
-                <select id="difficulty-selector" class="rounded-md border border-gray-300 p-2">
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                </select>
-            </div>
-            <p id="player-status-info" class="text-md font-normal text-gray-500 hidden"></p>
-            <p id="bot-status-info" class="text-md font-normal text-gray-500 hidden"></p>
-            <button id="start-button" class="px-6 py-3 bg-green-600 text-white font-bold text-lg rounded-full shadow-lg hover:bg-green-700 transition-all duration-300 transform hover:scale-105">Start Game</button>
-        </div>
+        </section>
     </main>
+
+    <!-- ============ PASS-THE-PHONE HANDOFF OVERLAY ============ -->
+    <div id="handoff-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-gray-900 p-6">
+        <div class="text-center max-w-md w-full">
+            <p class="text-6xl mb-6">📱</p>
+            <p id="handoff-text" class="text-white text-2xl font-bold mb-4"></p>
+            <p class="text-gray-300 mb-8">The boards are hidden — no peeking!</p>
+            <button id="handoff-btn" disabled class="px-8 py-4 bg-green-600 text-white font-bold text-xl rounded-full shadow-lg disabled:opacity-50 disabled:cursor-not-allowed w-full max-w-sm">Wait…</button>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // ---------- Element refs ----------
             const playerBoardElement = document.getElementById('player-board');
             const enemyBoardElement = document.getElementById('enemy-board');
             const turnInfo = document.getElementById('turn-info');
+            const waitNote = document.getElementById('wait-note');
             const playerStatusInfo = document.getElementById('player-status-info');
             const botStatusInfo = document.getElementById('bot-status-info');
             const startButton = document.getElementById('start-button');
             const difficultySelector = document.getElementById('difficulty-selector');
+            const difficultyRow = document.getElementById('difficulty-row');
+            const menuScreen = document.getElementById('menu-screen');
+            const onlineScreen = document.getElementById('online-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const ownBoardWrap = document.getElementById('own-board-wrap');
+            const targetBoardWrap = document.getElementById('target-board-wrap');
+            const ownBoardTitle = document.getElementById('own-board-title');
+            const targetBoardTitle = document.getElementById('target-board-title');
+            const turnBanner = document.getElementById('turn-banner');
+            const soundToggle = document.getElementById('sound-toggle');
+            const rematchBtn = document.getElementById('rematch-btn');
+            const menuBtn = document.getElementById('menu-btn');
+            const handoffOverlay = document.getElementById('handoff-overlay');
+            const handoffText = document.getElementById('handoff-text');
+            const handoffBtn = document.getElementById('handoff-btn');
+            const onlineStatus = document.getElementById('online-status');
+            const createGameBtn = document.getElementById('create-game-btn');
+            const hostWait = document.getElementById('host-wait');
+            const gameCodeDisplay = document.getElementById('game-code-display');
+            const joinCodeInput = document.getElementById('join-code-input');
+            const joinGameBtn = document.getElementById('join-game-btn');
+            const onlineBackBtn = document.getElementById('online-back-btn');
+
+            // ---------- Shared config (unchanged from the original game) ----------
             const boardSize = 10;
             const shipConfig = [
                 { name: "Patrol", size: 2 },
@@ -131,6 +228,198 @@
                 { name: "Battleship", size: 4 },
                 { name: "Carrier", size: 5 }
             ];
+
+            // ---------- App state ----------
+            let mode = 'menu'; // 'single' | 'local' | 'online'
+
+            // ---------- Sound effects (Baker Bots SFX, as MP3) ----------
+            const SFX_FILES = {
+                turn: 'your-turn.mp3',
+                tap: 'tap.mp3',
+                woosh: 'woosh.mp3',
+                effect: 'effect.mp3',
+                error: 'error.mp3',
+                select: 'select.mp3',
+                join: 'join.mp3',
+                victory: 'victory.mp3'
+            };
+            let soundOn = localStorage.getItem('battleshipSound') !== 'off';
+            const audioCache = {};
+            function initAudio() {
+                Object.keys(SFX_FILES).forEach(name => {
+                    if (!audioCache[name]) {
+                        try {
+                            const a = new Audio(SFX_FILES[name]);
+                            a.preload = 'auto';
+                            audioCache[name] = a;
+                        } catch (e) { /* missing file must never break the game */ }
+                    }
+                });
+            }
+            // Audio can only start after a user gesture — warm up on the first tap anywhere.
+            document.addEventListener('pointerdown', initAudio, { once: true });
+            function playSound(name) {
+                if (!soundOn) return;
+                try {
+                    initAudio();
+                    const a = audioCache[name];
+                    if (!a) return;
+                    a.currentTime = 0;
+                    const p = a.play();
+                    if (p && p.catch) p.catch(() => {});
+                } catch (e) { /* sounds must never break the game */ }
+            }
+            function updateSoundToggle() {
+                soundToggle.textContent = soundOn ? '🔊 Sound On' : '🔇 Sound Off';
+            }
+            soundToggle.addEventListener('click', () => {
+                soundOn = !soundOn;
+                localStorage.setItem('battleshipSound', soundOn ? 'on' : 'off');
+                updateSoundToggle();
+                if (soundOn) playSound('select');
+            });
+            updateSoundToggle();
+
+            // ---------- Screen helpers ----------
+            function showScreen(which) {
+                menuScreen.classList.toggle('hidden', which !== 'menu');
+                menuScreen.classList.toggle('flex', which === 'menu');
+                onlineScreen.classList.toggle('hidden', which !== 'online');
+                onlineScreen.classList.toggle('flex', which === 'online');
+                gameScreen.classList.toggle('hidden', which !== 'game');
+                window.scrollTo(0, 0);
+            }
+            let bannerTimer = null;
+            function showBanner(text) {
+                turnBanner.textContent = text;
+                turnBanner.classList.remove('banner-hidden');
+                if (bannerTimer) clearTimeout(bannerTimer);
+                bannerTimer = setTimeout(() => turnBanner.classList.add('banner-hidden'), 1800);
+            }
+            function hideBanner() {
+                turnBanner.classList.add('banner-hidden');
+            }
+            // The board being shot at is the big one; the other shrinks back.
+            function setProminence(targetProminent) {
+                const prom = targetProminent ? targetBoardWrap : ownBoardWrap;
+                const sec = targetProminent ? ownBoardWrap : targetBoardWrap;
+                prom.style.order = '1';
+                prom.style.maxWidth = '24rem';
+                prom.classList.add('prominent');
+                prom.classList.remove('secondary');
+                sec.style.order = '2';
+                sec.style.maxWidth = '11rem';
+                sec.classList.add('secondary');
+                sec.classList.remove('prominent');
+            }
+
+            // ---------- Shared board helpers (original logic, reused by every mode) ----------
+            function placeShipsRandomly(ships) {
+                const board = Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
+                ships.forEach(ship => {
+                    let placed = false;
+                    while (!placed) {
+                        const orientation = Math.random() < 0.5 ? 'horizontal' : 'vertical';
+                        const row = Math.floor(Math.random() * (orientation === 'horizontal' ? boardSize : boardSize - ship.size));
+                        const col = Math.floor(Math.random() * (orientation === 'horizontal' ? boardSize - ship.size + 1 : boardSize));
+                        if (canPlaceShip(board, row, col, ship.size, orientation)) {
+                            for (let i = 0; i < ship.size; i++) {
+                                if (orientation === 'horizontal') board[row][col + i] = ship.name;
+                                else board[row + i][col] = ship.name;
+                            }
+                            placed = true;
+                        }
+                    }
+                });
+                return board;
+            }
+            function canPlaceShip(board, row, col, size, orientation) {
+                for (let i = 0; i < size; i++) {
+                    let checkRow = orientation === 'horizontal' ? row : row + i;
+                    let checkCol = orientation === 'horizontal' ? col + i : col;
+                    if (checkRow >= boardSize || checkCol >= boardSize || board[checkRow][checkCol] !== 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            function calculateMissesAllowed(shipsState, sunkShips) {
+                let initialMisses = 10;
+                let damagedShipsCount = 0;
+                shipConfig.forEach(ship => {
+                    const hitsOnShip = shipsState.flat().filter(c => c === `${ship.name}-hit`).length;
+                    const shipSunk = sunkShips.includes(ship.name);
+                    if (hitsOnShip > 0 && !shipSunk) {
+                        damagedShipsCount++;
+                    }
+                });
+                initialMisses -= damagedShipsCount;
+                initialMisses -= sunkShips.length * 2;
+                return Math.max(0, initialMisses);
+            }
+            function checkWin(board) {
+                return shipConfig.every(ship => {
+                    const shipPresent = board.flat().some(cell => cell === ship.name);
+                    return !shipPresent;
+                });
+            }
+            // Resolve one shot against a fleet grid. Mutates the grid exactly like the original game.
+            function resolveShot(grid, row, col) {
+                const value = grid[row][col];
+                if (value === 'miss' || (typeof value === 'string' && value.includes('-hit'))) {
+                    return { already: true, hit: false, sunk: null, win: false };
+                }
+                if (value === 0) {
+                    grid[row][col] = 'miss';
+                    return { already: false, hit: false, sunk: null, win: false };
+                }
+                const shipName = String(value);
+                grid[row][col] = `${shipName}-hit`;
+                const hitsOnShip = grid.flat().filter(c => c === `${shipName}-hit`).length;
+                const shipSize = shipConfig.find(s => s.name === shipName).size;
+                const sunk = hitsOnShip === shipSize ? shipName : null;
+                return { already: false, hit: true, ship: shipName, sunk: sunk, win: checkWin(grid) };
+            }
+            // Generic renderer for the 2-player engines: ownerView shows ship colors,
+            // attacker view shows only hits and misses.
+            function renderGrid(boardElement, grid, ownerView, onCellClick) {
+                boardElement.innerHTML = '';
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize; col++) {
+                        const cell = document.createElement('div');
+                        cell.classList.add('cell');
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+                        const value = grid[row][col];
+                        if (value === 'miss') {
+                            cell.classList.add('miss');
+                        } else if (typeof value === 'string' && value.includes('-hit')) {
+                            cell.classList.add('hit');
+                            if (ownerView) cell.classList.add(value.split('-')[0]);
+                        } else if (value !== 0 && ownerView) {
+                            cell.classList.add(value);
+                        }
+                        if (onCellClick) {
+                            cell.addEventListener('click', () => onCellClick(row, col, cell));
+                        }
+                        boardElement.appendChild(cell);
+                    }
+                }
+            }
+            function setWaitNote(text) {
+                if (text) {
+                    waitNote.textContent = text;
+                    waitNote.classList.remove('hidden');
+                } else {
+                    waitNote.textContent = '';
+                    waitNote.classList.add('hidden');
+                }
+            }
+
+            // ================================================================
+            // 1 PLAYER MODE — the original game, unchanged rules and flow.
+            // (Added only: sound effects, board prominence swaps, turn banner.)
+            // ================================================================
             let playerShips = [];
             let enemyShips = [];
             let playerShipsSunk = [];
@@ -164,35 +453,6 @@
                     }
                 }
             }
-            function placeShipsRandomly(ships) {
-                const board = Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
-                ships.forEach(ship => {
-                    let placed = false;
-                    while (!placed) {
-                        const orientation = Math.random() < 0.5 ? 'horizontal' : 'vertical';
-                        const row = Math.floor(Math.random() * (orientation === 'horizontal' ? boardSize : boardSize - ship.size));
-                        const col = Math.floor(Math.random() * (orientation === 'horizontal' ? boardSize - ship.size + 1 : boardSize));
-                        if (canPlaceShip(board, row, col, ship.size, orientation)) {
-                            for (let i = 0; i < ship.size; i++) {
-                                if (orientation === 'horizontal') board[row][col + i] = ship.name;
-                                else board[row + i][col] = ship.name;
-                            }
-                            placed = true;
-                        }
-                    }
-                });
-                return board;
-            }
-            function canPlaceShip(board, row, col, size, orientation) {
-                for (let i = 0; i < size; i++) {
-                    let checkRow = orientation === 'horizontal' ? row : row + i;
-                    let checkCol = orientation === 'horizontal' ? col + i : col;
-                    if (checkRow >= boardSize || checkCol >= boardSize || board[checkRow][checkCol] !== 0) {
-                        return false;
-                    }
-                }
-                return true;
-            }
             function renderPlayerShips() {
                 for (let row = 0; row < boardSize; row++) {
                     for (let col = 0; col < boardSize; col++) {
@@ -201,20 +461,6 @@
                         }
                     }
                 }
-            }
-            function calculateMissesAllowed(shipsState, sunkShips) {
-                let initialMisses = 10;
-                let damagedShipsCount = 0;
-                shipConfig.forEach(ship => {
-                    const hitsOnShip = shipsState.flat().filter(c => c === `${ship.name}-hit`).length;
-                    const shipSunk = sunkShips.includes(ship.name);
-                    if (hitsOnShip > 0 && !shipSunk) {
-                        damagedShipsCount++;
-                    }
-                });
-                initialMisses -= damagedShipsCount;
-                initialMisses -= sunkShips.length * 2;
-                return Math.max(0, initialMisses);
             }
             function updateStatusInfo() {
                 if (isPlayerAttacking) {
@@ -231,8 +477,10 @@
                 botStatusInfo.classList.remove('hidden');
             }
             function handlePlayerShot(event) {
+                if (mode !== 'single') return;
                 if (!gameStarted || !playerTurn) {
                     turnInfo.textContent = "It's not your turn!";
+                    playSound('error');
                     return;
                 }
                 const cell = event.target;
@@ -240,13 +488,16 @@
                 const col = parseInt(cell.dataset.col);
                 if (cell.classList.contains('hit') || cell.classList.contains('miss')) {
                     turnInfo.textContent = "You already shot there. Try another spot!";
+                    playSound('error');
                     return;
                 }
+                playSound('tap');
                 const shipName = enemyShips[row][col];
                 if (shipName !== 0) {
                     cell.classList.add('hit');
                     enemyShips[row][col] = `${shipName}-hit`;
                     turnInfo.textContent = `You hit the enemy's ${shipName}! You get to shoot again!`;
+                    playSound('effect');
                     isPlayerAttacking = true;
                     const hitsOnShip = enemyShips.flat().filter(c => c === `${shipName}-hit`).length;
                     const shipSize = shipConfig.find(s => s.name === shipName).size;
@@ -278,11 +529,13 @@
                     playerTurn = false;
                     isPlayerAttacking = false;
                     updateStatusInfo();
+                    playSound('woosh');
                     setTimeout(botTurn, 2000);
                 }
             }
             function botTurn() {
                 turnInfo.textContent = "Bot is taking its turn...";
+                setProminence(false); // your board is being shot at — make it the big one
                 isBotAttacking = false;
                 botMissesLeft = calculateMissesAllowed(playerShips, playerShipsSunk);
                 updateStatusInfo();
@@ -300,6 +553,7 @@
                             playerTurn = true;
                             isBotAttacking = false;
                             updateStatusInfo();
+                            playSound('woosh');
                             setTimeout(startPlayerTurn, 2000);
                             return;
                         }
@@ -340,6 +594,7 @@
                         cell.classList.add('hit');
                         playerShips[shotRow][shotCol] = `${shipName}-hit`;
                         turnInfo.textContent = `Bot hit your ${shipName}!`;
+                        playSound('effect');
                         isHit = true;
                         isBotAttacking = true;
                         const hitsOnShip = playerShips.flat().filter(c => c === `${shipName}-hit`).length;
@@ -382,6 +637,7 @@
                         playerTurn = true;
                         isBotAttacking = false;
                         updateStatusInfo();
+                        playSound('woosh');
                         setTimeout(startPlayerTurn, 2000);
                     }
                 };
@@ -392,17 +648,15 @@
                 isPlayerAttacking = false;
                 playerMissesLeft = calculateMissesAllowed(playerShips, playerShipsSunk);
                 turnInfo.textContent = `Your turn! You are in the Exploring state with ${playerMissesLeft} misses left. Click on the enemy board to fire.`;
+                setProminence(true); // enemy board is the target again — make it the big one
+                showBanner('Your turn!');
+                playSound('turn');
                 updateStatusInfo();
-            }
-            function checkWin(board) {
-                return shipConfig.every(ship => {
-                    const shipPresent = board.flat().some(cell => cell === ship.name);
-                    return !shipPresent;
-                });
             }
             function endGame(message) {
                 turnInfo.textContent = message;
                 gameStarted = false;
+                if (message === "You win!") playSound('victory');
                 startButton.textContent = "Play Again";
                 startButton.classList.remove('bg-green-600', 'hover:bg-green-700');
                 startButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
@@ -412,6 +666,8 @@
                 playerTurn = false;
             }
             startButton.addEventListener('click', () => {
+                if (mode !== 'single') return;
+                playSound('select');
                 resetBoards();
                 createGrid(playerBoardElement, true);
                 createGrid(enemyBoardElement, false);
@@ -429,6 +685,649 @@
                 startPlayerTurn();
                 startButton.style.display = 'none';
             });
+            function enterSingleMode() {
+                mode = 'single';
+                ownBoardTitle.textContent = 'Your Board';
+                targetBoardTitle.textContent = 'Enemy Board';
+                difficultyRow.classList.remove('hidden');
+                difficultyRow.classList.add('flex');
+                startButton.style.display = 'block';
+                startButton.textContent = 'Start Game';
+                startButton.classList.add('bg-green-600', 'hover:bg-green-700');
+                startButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                rematchBtn.classList.add('hidden');
+                gameStarted = false;
+                playerTurn = false;
+                resetBoards();
+                setProminence(true);
+                turnInfo.textContent = 'Click "Start Game" to begin.';
+                playerStatusInfo.classList.add('hidden');
+                botStatusInfo.classList.add('hidden');
+                setWaitNote(null);
+                showScreen('game');
+            }
+
+            // ================================================================
+            // PASS-THE-PHONE HANDOFF (same-phone mode)
+            // Boards are fully covered; the continue button stays disabled
+            // for a full 5-second countdown so nobody can tap through and
+            // accidentally see the other player's board.
+            // ================================================================
+            let handoffInterval = null;
+            function showHandoff(text, nextPlayerName, onContinue) {
+                handoffText.textContent = text;
+                handoffOverlay.classList.remove('hidden');
+                handoffBtn.disabled = true;
+                let secondsLeft = 5;
+                handoffBtn.textContent = `Wait… ${secondsLeft}`;
+                if (handoffInterval) clearInterval(handoffInterval);
+                handoffInterval = setInterval(() => {
+                    secondsLeft--;
+                    if (secondsLeft > 0) {
+                        handoffBtn.textContent = `Wait… ${secondsLeft}`;
+                    } else {
+                        clearInterval(handoffInterval);
+                        handoffInterval = null;
+                        handoffBtn.disabled = false;
+                        handoffBtn.textContent = `${nextPlayerName} — Start Your Turn`;
+                    }
+                }, 1000);
+                handoffBtn.onclick = () => {
+                    if (handoffBtn.disabled) return;
+                    handoffOverlay.classList.add('hidden');
+                    onContinue();
+                };
+                window.scrollTo(0, 0);
+            }
+            function hideHandoff() {
+                if (handoffInterval) { clearInterval(handoffInterval); handoffInterval = null; }
+                handoffOverlay.classList.add('hidden');
+            }
+
+            // ================================================================
+            // 2 PLAYERS — SAME PHONE (pass-and-play)
+            // Same custom rules as 1 Player: Exploring/Attacking states and
+            // a per-turn misses budget from calculateMissesAllowed, computed
+            // from the shooter's own fleet — exactly like startPlayerTurn.
+            // ================================================================
+            let localPlayers = [];
+            let localCurrent = 0;
+            let localPlaying = false;
+            function makeLocalPlayer(name) {
+                return {
+                    name: name,
+                    grid: placeShipsRandomly(shipConfig),
+                    sunk: [],
+                    missesLeft: 0,
+                    attacking: false
+                };
+            }
+            function enterLocalMode() {
+                mode = 'local';
+                difficultyRow.classList.add('hidden');
+                difficultyRow.classList.remove('flex');
+                startButton.style.display = 'none';
+                rematchBtn.classList.add('hidden');
+                playerStatusInfo.classList.add('hidden');
+                botStatusInfo.classList.add('hidden');
+                setWaitNote(null);
+                showScreen('game');
+                startLocalGame();
+            }
+            function startLocalGame() {
+                localPlayers = [makeLocalPlayer('Player 1'), makeLocalPlayer('Player 2')];
+                localCurrent = 0;
+                localPlaying = true;
+                rematchBtn.classList.add('hidden');
+                resetBoards();
+                turnInfo.textContent = 'Pass the phone to Player 1 to start.';
+                showHandoff('Player 1 goes first. Pass the phone to Player 1.', 'Player 1', beginLocalTurn);
+            }
+            function beginLocalTurn() {
+                const me = localPlayers[localCurrent];
+                me.missesLeft = calculateMissesAllowed(me.grid, me.sunk);
+                me.attacking = false;
+                renderLocalBoards();
+                setProminence(true); // shooter sees the target board big, own board small below
+                showBanner(`${me.name}'s turn!`);
+                playSound('turn');
+                turnInfo.textContent = `${me.name}'s turn! You are in the Exploring state with ${me.missesLeft} misses left. Tap the enemy board to fire.`;
+                updateLocalStatus();
+            }
+            function renderLocalBoards() {
+                const me = localPlayers[localCurrent];
+                const foe = localPlayers[1 - localCurrent];
+                ownBoardTitle.textContent = `${me.name}'s Board`;
+                targetBoardTitle.textContent = `${foe.name}'s Board`;
+                renderGrid(playerBoardElement, me.grid, true, null);
+                renderGrid(enemyBoardElement, foe.grid, false, handleLocalShot);
+            }
+            function updateLocalStatus() {
+                const me = localPlayers[localCurrent];
+                const foe = localPlayers[1 - localCurrent];
+                playerStatusInfo.textContent = me.attacking
+                    ? `${me.name}'s turn: Attacking state!`
+                    : `${me.name}'s turn: Exploring state. Misses left: ${me.missesLeft}`;
+                playerStatusInfo.classList.remove('hidden');
+                botStatusInfo.textContent = foe.attacking
+                    ? `${foe.name}'s turn: Attacking state!`
+                    : `${foe.name}'s turn: Exploring state. Misses left: ${foe.missesLeft}`;
+                botStatusInfo.classList.remove('hidden');
+            }
+            function handleLocalShot(row, col) {
+                if (mode !== 'local' || !localPlaying) return;
+                const me = localPlayers[localCurrent];
+                const foe = localPlayers[1 - localCurrent];
+                const res = resolveShot(foe.grid, row, col);
+                if (res.already) {
+                    turnInfo.textContent = "You already shot there. Try another spot!";
+                    playSound('error');
+                    return;
+                }
+                playSound('tap');
+                if (res.sunk) foe.sunk.push(res.sunk);
+                renderLocalBoards();
+                if (res.hit) {
+                    playSound('effect');
+                    me.attacking = true;
+                    turnInfo.textContent = `You hit ${foe.name}'s ${res.ship}! You get to shoot again!`;
+                    if (res.sunk) turnInfo.textContent += ` You sank their ${res.sunk}!`;
+                    if (res.win) {
+                        endLocalGame(me);
+                        return;
+                    }
+                    updateLocalStatus();
+                } else {
+                    turnInfo.textContent = "You missed!";
+                    if (me.attacking) {
+                        turnInfo.textContent += " Your turn is over.";
+                        updateLocalStatus();
+                        endLocalTurn();
+                    } else {
+                        me.missesLeft--;
+                        if (me.missesLeft > 0) {
+                            turnInfo.textContent += ` You have ${me.missesLeft} misses left.`;
+                            updateLocalStatus();
+                        } else {
+                            turnInfo.textContent += " Your turn is over.";
+                            updateLocalStatus();
+                            endLocalTurn();
+                        }
+                    }
+                }
+            }
+            function endLocalTurn() {
+                const passer = localPlayers[localCurrent];
+                localCurrent = 1 - localCurrent;
+                const next = localPlayers[localCurrent];
+                playSound('woosh');
+                // Hide both boards behind the handoff before the next player looks.
+                resetBoards();
+                setTimeout(() => {
+                    showHandoff(`${passer.name}'s turn is over. Pass the phone to ${next.name}.`, next.name, beginLocalTurn);
+                }, 1200);
+            }
+            function endLocalGame(winner) {
+                localPlaying = false;
+                const loser = localPlayers[1 - localPlayers.indexOf(winner)];
+                turnInfo.textContent = `${winner.name} wins! ${loser.name}'s whole fleet is sunk.`;
+                playSound('victory');
+                playerStatusInfo.classList.add('hidden');
+                botStatusInfo.classList.add('hidden');
+                rematchBtn.classList.remove('hidden');
+            }
+
+            // ================================================================
+            // 2 PLAYERS — ONLINE (ntfy.sh relay, no server, no accounts)
+            //
+            // Both phones subscribe to topic "jbship-<code>" on ntfy.sh.
+            // Every message is JSON: { t, from, m, g, ... } where
+            //   t    = message type (see below)
+            //   from = sender's random client id (own messages are ignored)
+            //   m    = random message id (duplicates are ignored)
+            //   g    = game session id (set by the host in "welcome";
+            //          messages with the wrong g are ignored, which also
+            //          filters out stale messages ntfy may replay)
+            //
+            // Protocol:
+            //   join     guest -> host   "I want to play" (no g yet)
+            //   welcome  host  -> guest  { to, g, first } first = client id
+            //                            of whoever shoots first (host picks
+            //                            randomly)
+            //   ready    both ways       fleet is placed; sent once per round
+            //   start    host  -> guest  { first } host sends when both are
+            //                            ready (every round, incl. rematches)
+            //   shot     attacker        { r, c }
+            //   result   defender        { r, c, hit, sunk, win }
+            //   turn     attacker        "my turn is over, yours begins"
+            //                            (only the attacker knows when their
+            //                            misses budget runs out, so the
+            //                            attacker announces the turn pass)
+            //   gameover either          { winner } winner = client id
+            //   rematch  either          reset and play again, same code
+            //   bye      either          "I left" — other side is told
+            //
+            // Rules are the same custom rules as 1 Player: a turn is an
+            // Exploring phase (misses budget from calculateMissesAllowed,
+            // computed from your OWN fleet) until the first hit, then an
+            // Attacking phase that ends on the next miss. Running out of
+            // misses ends your turn — it does not end the game.
+            // ================================================================
+            const clientId = 'p' + Math.random().toString(36).slice(2, 10);
+            const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I or O — nothing that looks like 1 or 0
+            let es = null;               // EventSource
+            let netTopic = null;
+            let netIsHost = false;
+            let netState = 'idle';       // idle | waitingGuest | waitingWelcome | waitingReady | playing | ended | left
+            let sessionId = null;
+            let peerId = null;
+            let firstShooter = null;
+            let myGrid = null;
+            let mySunk = [];
+            let targetGrid = null;       // what I know about their board: 0 | 'miss' | 'Enemy-hit'
+            let currentTurnId = null;
+            let myReady = false;
+            let peerReady = false;
+            let myMissesLeft = 0;
+            let myAttacking = false;
+            let peerAttacking = false;
+            let pendingShot = null;
+            let waitTimer = null;
+            const seenMsgs = new Set();
+
+            function emptyTargetGrid() {
+                return Array.from({ length: boardSize }, () => Array(boardSize).fill(0));
+            }
+            function enterOnlineMode() {
+                mode = 'online';
+                onlineStatus.textContent = '';
+                hostWait.classList.add('hidden');
+                hostWait.classList.remove('flex');
+                joinCodeInput.value = '';
+                createGameBtn.disabled = false;
+                joinGameBtn.disabled = false;
+                showScreen('online');
+            }
+            function subscribeNet(code) {
+                netTopic = 'jbship-' + code.toLowerCase();
+                if (es) { es.close(); es = null; }
+                es = new EventSource(`https://ntfy.sh/${netTopic}/sse`);
+                es.onmessage = (event) => {
+                    try {
+                        const outer = JSON.parse(event.data);
+                        if (!outer || typeof outer.message !== 'string') return;
+                        const msg = JSON.parse(outer.message);
+                        handleNetMessage(msg);
+                    } catch (e) { /* malformed messages are ignored */ }
+                };
+            }
+            function netSend(obj) {
+                if (!netTopic) return;
+                obj.from = clientId;
+                obj.m = 'm' + Math.random().toString(36).slice(2, 10);
+                if (sessionId && obj.t !== 'join') obj.g = sessionId;
+                try {
+                    fetch(`https://ntfy.sh/${netTopic}`, {
+                        method: 'POST',
+                        body: JSON.stringify(obj),
+                        keepalive: obj.t === 'bye'
+                    }).catch(() => {});
+                } catch (e) { /* relay hiccups must never break the game */ }
+            }
+            function createGame() {
+                let code = '';
+                for (let i = 0; i < 4; i++) code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+                netIsHost = true;
+                sessionId = null;
+                peerId = null;
+                netState = 'waitingGuest';
+                subscribeNet(code);
+                gameCodeDisplay.textContent = code;
+                hostWait.classList.remove('hidden');
+                hostWait.classList.add('flex');
+                createGameBtn.disabled = true;
+                joinGameBtn.disabled = true;
+                onlineStatus.textContent = '';
+                playSound('select');
+            }
+            function joinGame() {
+                const code = joinCodeInput.value.toUpperCase().replace(/[^A-Z]/g, '');
+                if (code.length !== 4 || ![...code].every(ch => CODE_ALPHABET.includes(ch))) {
+                    onlineStatus.textContent = 'Enter the 4-letter code your friend gave you.';
+                    playSound('error');
+                    return;
+                }
+                netIsHost = false;
+                sessionId = null;
+                peerId = null;
+                netState = 'waitingWelcome';
+                subscribeNet(code);
+                createGameBtn.disabled = true;
+                joinGameBtn.disabled = true;
+                onlineStatus.textContent = "Looking for your friend's game…";
+                playSound('select');
+                netSend({ t: 'join' });
+                setTimeout(() => {
+                    if (mode === 'online' && netState === 'waitingWelcome') {
+                        onlineStatus.textContent = 'Still waiting — check the code, and make sure your friend tapped "Create Game" first.';
+                    }
+                }, 20000);
+            }
+            function setupOnlineRound() {
+                myGrid = placeShipsRandomly(shipConfig);
+                mySunk = [];
+                targetGrid = emptyTargetGrid();
+                myReady = false;
+                peerReady = false;
+                myAttacking = false;
+                peerAttacking = false;
+                pendingShot = null;
+                currentTurnId = null;
+                clearWaitTimer();
+                setWaitNote(null);
+                rematchBtn.classList.add('hidden');
+            }
+            function renderOnlineBoards() {
+                ownBoardTitle.textContent = 'Your Board';
+                targetBoardTitle.textContent = "Opponent's Board";
+                renderGrid(playerBoardElement, myGrid, true, null);
+                renderGrid(enemyBoardElement, targetGrid, false, handleOnlineShot);
+            }
+            function updateOnlineStatus() {
+                playerStatusInfo.textContent = myAttacking
+                    ? `Your turn: Attacking state!`
+                    : `Your turn: Exploring state. Misses left: ${myMissesLeft}`;
+                playerStatusInfo.classList.remove('hidden');
+                botStatusInfo.textContent = peerAttacking
+                    ? `Opponent's turn: Attacking state!`
+                    : `Opponent's turn: Exploring state.`;
+                botStatusInfo.classList.remove('hidden');
+            }
+            function clearWaitTimer() {
+                if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+            }
+            function beginOnlineMyTurn() {
+                currentTurnId = clientId;
+                myMissesLeft = calculateMissesAllowed(myGrid, mySunk);
+                myAttacking = false;
+                setProminence(true); // their board is the target — big
+                showBanner('Your turn!');
+                playSound('turn');
+                turnInfo.textContent = `Your turn! You are in the Exploring state with ${myMissesLeft} misses left. Tap the enemy board to fire.`;
+                renderOnlineBoards();
+                updateOnlineStatus();
+            }
+            function beginOnlineWaiting(extra) {
+                currentTurnId = peerId;
+                peerAttacking = false;
+                setProminence(false); // your board is being shot at — watch your fleet, big
+                turnInfo.textContent = extra || 'Waiting for their shot…';
+                renderOnlineBoards();
+                updateOnlineStatus();
+            }
+            function applyOnlineStart() {
+                if (netState !== 'waitingReady') return;
+                netState = 'playing';
+                showScreen('game');
+                if (firstShooter === clientId) beginOnlineMyTurn();
+                else beginOnlineWaiting('Your opponent goes first. Waiting for their shot…');
+            }
+            function handleOnlineShot(row, col) {
+                if (mode !== 'online') return;
+                if (netState !== 'playing' || currentTurnId !== clientId) {
+                    if (netState === 'playing') {
+                        turnInfo.textContent = "It's not your turn!";
+                        playSound('error');
+                    }
+                    return;
+                }
+                if (pendingShot) return; // one shot in flight at a time
+                if (targetGrid[row][col] !== 0) {
+                    turnInfo.textContent = "You already shot there. Try another spot!";
+                    playSound('error');
+                    return;
+                }
+                playSound('tap');
+                pendingShot = { r: row, c: col };
+                netSend({ t: 'shot', r: row, c: col });
+                turnInfo.textContent = 'Shot fired — waiting for the result…';
+                clearWaitTimer();
+                waitTimer = setTimeout(() => {
+                    if (pendingShot) setWaitNote('Still waiting — they may have closed the game.');
+                }, 30000);
+            }
+            function endOnlineMyTurn() {
+                playSound('woosh');
+                netSend({ t: 'turn' });
+                beginOnlineWaiting('Your turn is over. Waiting for their shot…');
+            }
+            function endOnlineGame(winnerId) {
+                if (netState === 'ended') return;
+                netState = 'ended';
+                pendingShot = null;
+                clearWaitTimer();
+                setWaitNote(null);
+                const iWin = winnerId === clientId;
+                turnInfo.textContent = iWin ? 'You win!' : 'You lose!';
+                if (iWin) playSound('victory');
+                playerStatusInfo.classList.add('hidden');
+                botStatusInfo.classList.add('hidden');
+                rematchBtn.classList.remove('hidden');
+                renderOnlineBoards();
+            }
+            function onlineRematchTap() {
+                if (netState !== 'ended') return;
+                setupOnlineRound();
+                firstShooter = null; // host picks fresh for the new round
+                netState = 'waitingReady';
+                netSend({ t: 'rematch' });
+                myReady = true;
+                netSend({ t: 'ready' });
+                turnInfo.textContent = 'Rematch! Waiting for your opponent to be ready…';
+                showScreen('game');
+            }
+            function leaveOnline(sendBye) {
+                if (sendBye && netTopic && netState !== 'idle') netSend({ t: 'bye' });
+                if (es) { es.close(); es = null; }
+                netTopic = null;
+                netState = 'idle';
+                sessionId = null;
+                peerId = null;
+                pendingShot = null;
+                clearWaitTimer();
+                setWaitNote(null);
+            }
+            function handleNetMessage(msg) {
+                if (!msg || typeof msg !== 'object' || !msg.t) return;
+                if (msg.from === clientId) return; // never react to my own messages
+                if (msg.m) {
+                    if (seenMsgs.has(msg.m)) return;
+                    seenMsgs.add(msg.m);
+                    if (seenMsgs.size > 1000) seenMsgs.clear();
+                }
+                // Handshake messages arrive before a session exists.
+                if (msg.t === 'join') {
+                    if (mode === 'online' && netIsHost && netState === 'waitingGuest') {
+                        peerId = msg.from;
+                        sessionId = 'g' + Math.random().toString(36).slice(2, 10);
+                        firstShooter = Math.random() < 0.5 ? clientId : peerId;
+                        netSend({ t: 'welcome', to: peerId, first: firstShooter });
+                        playSound('join');
+                        setupOnlineRound();
+                        netState = 'waitingReady';
+                        myReady = true;
+                        netSend({ t: 'ready' });
+                        difficultyRow.classList.add('hidden');
+                        difficultyRow.classList.remove('flex');
+                        startButton.style.display = 'none';
+                        turnInfo.textContent = 'Your friend joined! Getting the game ready…';
+                        showScreen('game');
+                        renderOnlineBoards();
+                    }
+                    return;
+                }
+                if (msg.t === 'welcome') {
+                    if (mode === 'online' && !netIsHost && netState === 'waitingWelcome' && msg.to === clientId && msg.g) {
+                        peerId = msg.from;
+                        sessionId = msg.g;
+                        firstShooter = msg.first;
+                        playSound('join');
+                        setupOnlineRound();
+                        netState = 'waitingReady';
+                        myReady = true;
+                        netSend({ t: 'ready' });
+                        difficultyRow.classList.add('hidden');
+                        difficultyRow.classList.remove('flex');
+                        startButton.style.display = 'none';
+                        turnInfo.textContent = 'Connected! Getting the game ready…';
+                        showScreen('game');
+                        renderOnlineBoards();
+                    }
+                    return;
+                }
+                // Everything below needs an established session.
+                if (!sessionId || msg.g !== sessionId) return;
+                if (peerId && msg.from !== peerId) return;
+                switch (msg.t) {
+                    case 'ready':
+                        peerReady = true;
+                        if (netIsHost && netState === 'waitingReady' && myReady) {
+                            if (!firstShooter) firstShooter = Math.random() < 0.5 ? clientId : peerId;
+                            netSend({ t: 'start', first: firstShooter });
+                            applyOnlineStart();
+                        }
+                        break;
+                    case 'start':
+                        firstShooter = msg.first;
+                        applyOnlineStart();
+                        break;
+                    case 'shot': {
+                        if (netState !== 'playing' || currentTurnId !== peerId) return;
+                        const res = resolveShot(myGrid, msg.r, msg.c);
+                        if (res.already) {
+                            // Duplicate shot — answer from the current cell so nobody hangs.
+                            const v = myGrid[msg.r][msg.c];
+                            netSend({ t: 'result', r: msg.r, c: msg.c, hit: typeof v === 'string' && v.includes('-hit'), sunk: null, win: checkWin(myGrid) });
+                            return;
+                        }
+                        if (res.sunk) mySunk.push(res.sunk);
+                        renderOnlineBoards();
+                        if (res.hit) {
+                            playSound('effect');
+                            peerAttacking = true;
+                            turnInfo.textContent = `They hit your ${res.ship}!`;
+                            if (res.sunk) turnInfo.textContent += ` Your ${res.sunk} was sunk!`;
+                        } else {
+                            turnInfo.textContent = 'They missed!';
+                        }
+                        updateOnlineStatus();
+                        netSend({ t: 'result', r: msg.r, c: msg.c, hit: res.hit, sunk: res.sunk, win: res.win });
+                        if (res.win) {
+                            netSend({ t: 'gameover', winner: peerId });
+                            endOnlineGame(peerId);
+                        }
+                        break;
+                    }
+                    case 'result': {
+                        if (netState !== 'playing' || !pendingShot) return;
+                        if (msg.r !== pendingShot.r || msg.c !== pendingShot.c) return;
+                        pendingShot = null;
+                        clearWaitTimer();
+                        setWaitNote(null);
+                        targetGrid[msg.r][msg.c] = msg.hit ? 'Enemy-hit' : 'miss';
+                        renderOnlineBoards();
+                        if (msg.hit) {
+                            playSound('effect');
+                            myAttacking = true;
+                            turnInfo.textContent = 'You hit their ship! You get to shoot again!';
+                            if (msg.sunk) turnInfo.textContent += ` You sank their ${msg.sunk}!`;
+                            if (msg.win) {
+                                netSend({ t: 'gameover', winner: clientId });
+                                endOnlineGame(clientId);
+                                return;
+                            }
+                            updateOnlineStatus();
+                        } else {
+                            turnInfo.textContent = 'You missed!';
+                            if (myAttacking) {
+                                turnInfo.textContent += ' Your turn is over.';
+                                endOnlineMyTurn();
+                            } else {
+                                myMissesLeft--;
+                                if (myMissesLeft > 0) {
+                                    turnInfo.textContent += ` You have ${myMissesLeft} misses left.`;
+                                    updateOnlineStatus();
+                                } else {
+                                    turnInfo.textContent += ' Your turn is over.';
+                                    endOnlineMyTurn();
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    case 'turn':
+                        if (netState !== 'playing') return;
+                        beginOnlineMyTurn();
+                        break;
+                    case 'gameover':
+                        endOnlineGame(msg.winner);
+                        break;
+                    case 'rematch':
+                        if (netState === 'ended' || netState === 'playing') {
+                            setupOnlineRound();
+                            netState = 'waitingReady';
+                            firstShooter = null; // host picks fresh for the new round
+                            myReady = true;
+                            netSend({ t: 'ready' });
+                            turnInfo.textContent = 'Rematch! Getting the game ready…';
+                            showScreen('game');
+                        }
+                        break;
+                    case 'bye':
+                        if (netState !== 'idle') {
+                            netState = 'left';
+                            pendingShot = null;
+                            clearWaitTimer();
+                            setWaitNote(null);
+                            rematchBtn.classList.add('hidden');
+                            turnInfo.textContent = 'Your opponent left the game.';
+                        }
+                        break;
+                }
+            }
+
+            // ---------- Wiring: menu, buttons, leaving ----------
+            document.getElementById('mode-1p').addEventListener('click', () => { playSound('select'); enterSingleMode(); });
+            document.getElementById('mode-local').addEventListener('click', () => { playSound('select'); enterLocalMode(); });
+            document.getElementById('mode-online').addEventListener('click', () => { playSound('select'); enterOnlineMode(); });
+            difficultySelector.addEventListener('change', () => playSound('select'));
+            createGameBtn.addEventListener('click', createGame);
+            joinGameBtn.addEventListener('click', joinGame);
+            joinCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
+            onlineBackBtn.addEventListener('click', () => {
+                leaveOnline(true);
+                mode = 'menu';
+                showScreen('menu');
+            });
+            rematchBtn.addEventListener('click', () => {
+                playSound('select');
+                if (mode === 'local') startLocalGame();
+                else if (mode === 'online') onlineRematchTap();
+            });
+            menuBtn.addEventListener('click', () => {
+                if (mode === 'online') leaveOnline(true);
+                if (mode === 'local') { localPlaying = false; hideHandoff(); }
+                gameStarted = false;
+                playerTurn = false;
+                hideBanner();
+                mode = 'menu';
+                showScreen('menu');
+            });
+            window.addEventListener('beforeunload', () => {
+                if (mode === 'online' && netTopic && netState !== 'idle') netSend({ t: 'bye' });
+            });
+
+            showScreen('menu');
         });
     </script>
 </body>
