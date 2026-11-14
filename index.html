@@ -90,16 +90,46 @@
   ol { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
   li + li { border-top: 1px solid #cfcfcf; }
   .track {
+    display: flex; align-items: center; gap: 4px;
+    width: 100%; padding: 8px 12px; min-height: 52px;
+    background: #fff; color: var(--text);
+  }
+  .tmain {
     display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center;
-    width: 100%; padding: 14px 12px; min-height: 52px;
-    background: #fff; color: var(--text); border: 0; border-radius: 0; box-shadow: none;
+    flex: 1; padding: 6px 0; min-height: 40px;
+    background: none; border: 0; box-shadow: none; color: inherit;
     font: 400 1rem "Roboto", Arial, sans-serif; text-align: left; cursor: pointer;
   }
   .track .n, .track .d { font-variant-numeric: tabular-nums; }
   .track .d { font-size: .9rem; }
-  .track.playing { background: var(--head); font-weight: 700; }
-  .track:focus-visible { outline-offset: -3px; }
+  .track.playing { background: var(--head); }
+  .track.playing .tmain { font-weight: 700; }
+  .tmain:focus-visible { outline-offset: -3px; }
+  .fav { background: none; border: 0; box-shadow: none; cursor: pointer; padding: 8px; line-height: 0; }
+  .fav svg { width: 22px; height: 22px; fill: #c9c9c9; display: block; }
+  .fav.on svg { fill: #e0245e; }
+  .empty-note { padding: 16px 12px; font-size: .95rem; background: #fff; }
+  .tracks-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .tracks-head h2 { margin: 0; }
+  .chip {
+    font: 500 .9rem "Roboto", Arial, sans-serif; padding: 8px 14px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 999px; background: #fff; color: inherit;
+  }
+  .chip[aria-pressed="true"] { background: var(--head); font-weight: 700; }
+  .btn[aria-pressed="true"] { background: var(--head); }
+  #repeat .badge { display: none; font-size: .8rem; font-weight: 700; margin-left: 3px; }
+  #repeat.one .badge { display: inline; }
   @media (hover: hover) { .track:not(.playing):hover { background: #f3fafd; } }
+  /* Version toggle (Instrumental / Vocal) — shown on Genesis; playback swap is wired up later, when vocal files exist */
+  .version { display: none; justify-content: center; margin-top: 6px; }
+  .version.show { display: flex; }
+  .version button {
+    font: inherit; font-size: .9rem; padding: 6px 14px; cursor: pointer;
+    border: 1px solid var(--line); background: #fff; color: inherit;
+  }
+  .version button:first-child { border-radius: 999px 0 0 999px; }
+  .version button:last-child { border-radius: 0 999px 999px 0; border-left: none; }
+  .version button[aria-pressed="true"] { background: var(--head); font-weight: 700; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -123,6 +153,9 @@
   <div class="times"><span id="cur">0:00</span><span id="tot">0:00</span></div>
 
   <div class="controls">
+    <button class="btn" id="shuffle" aria-label="Shuffle" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.83-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+    </button>
     <button class="btn" id="prev" aria-label="Previous track">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
     </button>
@@ -132,6 +165,13 @@
     <button class="btn" id="next" aria-label="Next track">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg>
     </button>
+    <button class="btn" id="repeat" aria-label="Repeat: off" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg><span class="badge">1</span>
+    </button>
+  </div>
+  <div class="version" id="version" role="group" aria-label="Version">
+    <button type="button" id="verInst" aria-pressed="true">Instrumental</button>
+    <button type="button" id="verVocal" aria-pressed="false">Vocal</button>
   </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 
@@ -140,7 +180,10 @@
     <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8">
   </div>
 
-  <h2>Tracks</h2>
+  <div class="tracks-head">
+    <h2>Tracks</h2>
+    <button type="button" class="chip" id="favFilter" aria-pressed="false">&#9829; Favorites</button>
+  </div>
   <ol id="list"></ol>
 </main>
 
@@ -216,7 +259,9 @@
     albums: $("albums"), cover: $("cover"), title: $("title"), artist: $("artist"),
     now: $("now"), bar: $("bar"), fill: $("fill"), cur: $("cur"), tot: $("tot"),
     prev: $("prev"), play: $("play"), next: $("next"), icon: $("icon"),
-    status: $("status"), vol: $("vol"), list: $("list")
+    status: $("status"), vol: $("vol"), list: $("list"),
+    version: $("version"), verInst: $("verInst"), verVocal: $("verVocal"),
+    shuffle: $("shuffle"), repeat: $("repeat"), favFilter: $("favFilter")
   };
   var ICON_PLAY = "M7 4l13 8-13 8z";
   var ICON_PAUSE = "M6 4h4v16H6zM14 4h4v16h-4z";
@@ -230,6 +275,55 @@
   var current = 0;                  // selected track within that album
   var loaded = -1;                  // track whose blob is in the audio element (-1 = none)
   var token = 0;                    // guards against out-of-order loads
+  var vocalMode = false;            // version toggle state (Genesis only for now)
+  // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
+  // While a track has no entry, flipping the toggle changes nothing about playback.
+  var VOCAL_FILES = {};
+
+  // Shuffle / repeat / favorites — favorites and mode choices live in this
+  // browser only (localStorage); there is no account and no cross-device sync.
+  var shuffleOn = false;
+  var repeatMode = 0;               // 0 = off, 1 = repeat all, 2 = repeat one
+  var favFilter = false;
+  var favorites = {};               // albumId -> [trackIndex, ...]
+  var viewList = [];                // track indices currently shown for A()
+  try {
+    favorites = JSON.parse(localStorage.getItem("gp-favorites") || "{}") || {};
+    shuffleOn = localStorage.getItem("gp-shuffle") === "1";
+    repeatMode = parseInt(localStorage.getItem("gp-repeat") || "0", 10) || 0;
+  } catch (_) {}
+  function savePrefs() {
+    try {
+      localStorage.setItem("gp-favorites", JSON.stringify(favorites));
+      localStorage.setItem("gp-shuffle", shuffleOn ? "1" : "0");
+      localStorage.setItem("gp-repeat", String(repeatMode));
+    } catch (_) {}
+  }
+  function isFav(aid, i) { return (favorites[aid] || []).indexOf(i) !== -1; }
+  function toggleFav(i) {
+    var aid = A().id;
+    var arr = favorites[aid] || (favorites[aid] = []);
+    var k = arr.indexOf(i);
+    if (k === -1) arr.push(i); else arr.splice(k, 1);
+    savePrefs();
+    if (favFilter) { buildList(); render(); }
+    renderFavs();
+  }
+  function renderFavs() {
+    var rows = els.list.querySelectorAll(".track");
+    for (var r = 0; r < rows.length; r++) {
+      var on = isFav(A().id, +rows[r].getAttribute("data-idx"));
+      var f = rows[r].querySelector(".fav");
+      if (f) { f.classList.toggle("on", on); f.setAttribute("aria-pressed", on ? "true" : "false"); }
+    }
+  }
+  function renderModes() {
+    els.shuffle.setAttribute("aria-pressed", shuffleOn ? "true" : "false");
+    els.repeat.setAttribute("aria-pressed", repeatMode ? "true" : "false");
+    els.repeat.classList.toggle("one", repeatMode === 2);
+    els.repeat.setAttribute("aria-label", "Repeat: " + (repeatMode === 2 ? "one" : repeatMode === 1 ? "all" : "off"));
+    els.favFilter.setAttribute("aria-pressed", favFilter ? "true" : "false");
+  }
 
   function A() { return ALBUMS[albumIdx]; }
   function T() { return A().tracks[current]; }
@@ -288,19 +382,44 @@
 
   function buildList() {
     els.list.innerHTML = "";
+    viewList = [];
     A().tracks.forEach(function (t, i) {
+      if (!favFilter || isFav(A().id, i)) viewList.push(i);
+    });
+    if (!viewList.length) {
+      var li0 = document.createElement("li");
+      li0.className = "empty-note";
+      li0.textContent = "No favorites in this album yet \u2014 tap a heart to add one.";
+      els.list.appendChild(li0);
+      return;
+    }
+    viewList.forEach(function (i) {
+      var t = A().tracks[i];
       var li = document.createElement("li");
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "track";
-      b.innerHTML = '<span class="n"></span><span class="t"></span><span class="d"></span>';
-      b.children[0].textContent = i + 1;
-      b.children[1].textContent = t.title;
-      b.children[2].textContent = t.len;
-      b.addEventListener("click", function () { select(i, true); });
-      li.appendChild(b);
+      var row = document.createElement("div");
+      row.className = "track";
+      row.setAttribute("data-idx", i);
+      var main = document.createElement("button");
+      main.type = "button";
+      main.className = "tmain";
+      main.innerHTML = '<span class="n"></span><span class="t"></span><span class="d"></span>';
+      main.children[0].textContent = i + 1;
+      main.children[1].textContent = t.title;
+      main.children[2].textContent = t.len;
+      main.addEventListener("click", function () { select(i, true); });
+      var fav = document.createElement("button");
+      fav.type = "button";
+      fav.className = "fav";
+      fav.setAttribute("aria-label", "Favorite: " + t.title);
+      fav.setAttribute("aria-pressed", "false");
+      fav.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3z"/></svg>';
+      fav.addEventListener("click", function () { toggleFav(i); });
+      row.appendChild(main);
+      row.appendChild(fav);
+      li.appendChild(row);
       els.list.appendChild(li);
     });
+    renderFavs();
   }
 
   function renderAlbum() {
@@ -311,14 +430,24 @@
     els.artist.textContent = a.artist;
     var cards = els.albums.querySelectorAll(".album");
     for (var i = 0; i < cards.length; i++) cards[i].setAttribute("aria-pressed", i === albumIdx ? "true" : "false");
+    els.version.classList.toggle("show", a.id === "genesis");
     buildList();
     render();
+  }
+
+  // Version toggle: flips state and button styling only, for now.
+  // TODO (when vocal files exist): if VOCAL_FILES[A().id] has the current track,
+  // swap the audio source to that file, restore audio.currentTime, and resume.
+  function setVocalMode(on) {
+    vocalMode = on;
+    els.verInst.setAttribute("aria-pressed", on ? "false" : "true");
+    els.verVocal.setAttribute("aria-pressed", on ? "true" : "false");
   }
 
   function render() {
     var rows = els.list.querySelectorAll(".track");
     for (var i = 0; i < rows.length; i++) {
-      var on = i === current;
+      var on = +rows[i].getAttribute("data-idx") === current;
       rows[i].classList.toggle("playing", on);
       if (on) rows[i].setAttribute("aria-current", "true");
       else rows[i].removeAttribute("aria-current");
@@ -404,10 +533,30 @@
     if (audio.paused) audio.play().catch(function () {});
     else audio.pause();
   }
-  function next() { if (current < A().tracks.length - 1) select(current + 1, true); }
+  function queuePos() { return viewList.indexOf(current); }
+  // Next track in the visible list, honoring shuffle and repeat-all; -1 = stop
+  function pickNext() {
+    if (!viewList.length) return -1;
+    if (shuffleOn && viewList.length > 1) {
+      var n;
+      do { n = viewList[Math.floor(Math.random() * viewList.length)]; } while (n === current);
+      return n;
+    }
+    var pos = queuePos();
+    if (pos !== -1 && pos < viewList.length - 1) return viewList[pos + 1];
+    if (repeatMode === 1) return viewList[0];
+    return -1;
+  }
+  function next() {
+    var n = pickNext();
+    if (n === -1) return;
+    if (n === current) { audio.currentTime = 0; audio.play().catch(function () {}); return; }
+    select(n, true);
+  }
   function prev() {
     if (loaded === current && audio.currentTime > 3) { audio.currentTime = 0; return; }
-    if (current > 0) select(current - 1, true);
+    var pos = queuePos();
+    if (pos > 0) select(viewList[pos - 1], true);
     else if (loaded === current) audio.currentTime = 0;
   }
 
@@ -439,6 +588,11 @@
   els.next.addEventListener("click", next);
   els.prev.addEventListener("click", prev);
   els.vol.addEventListener("input", function () { audio.volume = parseFloat(els.vol.value); });
+  els.verInst.addEventListener("click", function () { setVocalMode(false); });
+  els.verVocal.addEventListener("click", function () { setVocalMode(true); });
+  els.shuffle.addEventListener("click", function () { shuffleOn = !shuffleOn; savePrefs(); renderModes(); });
+  els.repeat.addEventListener("click", function () { repeatMode = (repeatMode + 1) % 3; savePrefs(); renderModes(); });
+  els.favFilter.addEventListener("click", function () { favFilter = !favFilter; buildList(); render(); renderModes(); });
 
   audio.addEventListener("timeupdate", updateTime);
   audio.addEventListener("loadedmetadata", updateTime);
@@ -446,7 +600,10 @@
   audio.addEventListener("play", updateButton);
   audio.addEventListener("pause", updateButton);
   audio.addEventListener("ended", function () {
-    if (current < A().tracks.length - 1) next();
+    if (repeatMode === 2) { audio.currentTime = 0; audio.play().catch(function () {}); return; }
+    var n = pickNext();
+    if (n !== -1 && n !== current) select(n, true);
+    else if (n === current) { audio.currentTime = 0; audio.play().catch(function () {}); }
     else { audio.currentTime = 0; updateButton(); updateTime(); }
   });
   audio.addEventListener("error", function () {
@@ -476,6 +633,7 @@
   watchImage(els.cover);
   buildAlbums();
   renderAlbum();
+  renderModes();
   updateButton();
 })();
 </script>
