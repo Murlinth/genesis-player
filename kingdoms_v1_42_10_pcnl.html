@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kingdoms 2.0 - v1.42</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .tile {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            background-color: #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s, background-color 0.2s;
+            position: relative;
+        }
+        .tile:active { transform: scale(0.95); }
+        .tile.empty { background-color: #f3f4f6; border: 2px dashed #d1d5db; }
+        .tile.selected-grid { border: 4px solid #f59e0b; background-color: #fef3c7; }
+        .tile.selected-action { border: 4px solid #3b82f6; background-color: #dbeafe; }
+        .tile.selected-demolish { border: 4px solid #ef4444; background-color: #fee2e2; }
+        
+        .pop-badge {
+            position: absolute; bottom: 4px; right: 4px; border-radius: 999px;
+            min-width: 18px; height: 18px; padding: 0 4px; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: bold; border: 1px solid white; pointer-events: none;
+        }
+
+        .strength-badge {
+            position: absolute; top: 4px; right: 4px; background-color: #fce7f3;
+            color: #9d174d; border-radius: 4px; padding: 0 4px; font-size: 9px;
+            font-weight: 800; border: 1px solid #f9a8d4; pointer-events: none;
+        }
+
+        .badge-dwelling { background-color: #78350f; color: white; }
+        .badge-farm { background-color: #fef08a; color: #854d0e; }
+        .badge-mine { background-color: #d1d5db; color: #1f2937; }
+        .badge-castle { background-color: #1e293b; color: #fbbf24; }
+        .badge-stump { background-color: #4ade80; color: white; }
+        .badge-water { background-color: #60a5fa; color: white; }
+        .badge-silo { background-color: #ea580c; color: white; }
+
+        .btn-build-sq {
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; border-radius: 12px; font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn-active {
+            outline: 4px solid #3b82f6;
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+            z-index: 10;
+        }
+
+        #modal-overlay, #confirm-overlay, #calamity-overlay, #warning-overlay, #restart-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            align-items: center; justify-content: center; z-index: 100;
+        }
+        #game-over-overlay {
+            display: none; position: absolute; inset: 0; background: rgba(255,255,255,0.98);
+            flex-direction: column; align-items: center; justify-content: center; z-index: 200;
+            border-radius: 16px; text-align: center; padding: 20px;
+        }
+        .active-resource-stat {
+            animation: pulse 1.5s infinite;
+            border-color: #3b82f6 !important;
+            background-color: #dbeafe !important;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col items-center p-4 relative text-slate-800 text-sm font-sans">
+
+    <!-- Restart Confirmation Modal -->
+    <div id="restart-overlay">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-xs w-full text-center">
+            <h3 class="text-lg font-bold mb-2">Restart Kingdom?</h3>
+            <p class="text-slate-500 mb-6">All progress will be lost. The land will be reset.</p>
+            <div class="flex gap-2">
+                <button onclick="closeRestart()" class="flex-1 py-2 bg-slate-100 rounded-lg font-bold">Cancel</button>
+                <button onclick="location.reload()" class="flex-1 py-2 bg-red-500 text-white rounded-lg font-bold">Restart</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Warning Modal -->
+    <div id="warning-overlay">
+        <div class="bg-white p-6 rounded-3xl shadow-2xl max-w-xs w-full text-center border-t-8 border-indigo-600">
+            <h3 class="text-lg font-bold mb-2">Initialize Castle?</h3>
+            <p class="text-slate-500 mb-6 leading-tight">Starting your castle will awaken the **Calamities**. Are you prepared for what comes next?</p>
+            <div class="flex gap-2">
+                <button onclick="closeWarning()" class="flex-1 py-2 bg-slate-100 rounded-xl font-bold">Not Yet</button>
+                <button id="confirm-castle-btn" class="flex-1 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-md">Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calamity Modal -->
+    <div id="calamity-overlay">
+        <div class="bg-white p-6 rounded-3xl shadow-2xl max-w-sm w-full border-t-8 border-red-500">
+            <div class="text-center mb-4">
+                <span id="calamity-icon" class="text-6xl block mb-2"></span>
+                <h2 id="calamity-title" class="text-2xl font-black uppercase tracking-tighter italic"></h2>
+            </div>
+            <p id="calamity-desc" class="text-slate-500 mb-6 text-center leading-tight"></p>
+            <div id="calamity-options" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-overlay">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-xs w-full text-center">
+            <h3 class="text-lg font-bold mb-2">Demolish Tile?</h3>
+            <p class="text-slate-500 mb-6">This costs 10 💎 and clears the space. Are you sure?</p>
+            <div class="flex gap-2">
+                <button onclick="closeConfirm()" class="flex-1 py-2 bg-slate-100 rounded-lg font-bold">Cancel</button>
+                <button onclick="executeDemolish()" class="flex-1 py-2 bg-red-500 text-white rounded-lg font-bold">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win/Loss Overlay -->
+    <div id="game-over-overlay">
+        <h2 id="status-text" class="text-4xl font-black mb-2 uppercase"></h2>
+        <p id="status-subtext" class="mb-4 text-slate-500 font-medium"></p>
+        <div id="score-display" class="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200 w-full">
+            <!-- Score filled by JS -->
+        </div>
+        <button onclick="location.reload()" class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold shadow-lg">Play Again</button>
+    </div>
+
+    <!-- Stats Header -->
+    <div class="bg-white shadow-md rounded-2xl p-4 mb-4 w-full max-w-md">
+        <div class="flex justify-between items-center mb-2">
+            <div class="flex items-center space-x-2">
+                <h1 class="text-lg font-bold tracking-tighter uppercase">Kingdoms</h1>
+                <button onclick="openModal()" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold hover:bg-slate-300 transition-all">?</button>
+                <button id="win-crown-btn" onclick="endGame('You Win!', 'Eternal Monarch of the Realm!', 'text-yellow-600', true)" class="hidden w-7 h-7 rounded-full bg-yellow-400 text-lg flex items-center justify-center animate-bounce shadow-md">👑</button>
+                <button id="lose-skull-btn" onclick="endGame('You Lose', 'The Kingdom has fallen to ruin.', 'text-slate-600', false)" class="hidden w-7 h-7 rounded-full bg-slate-800 text-lg flex items-center justify-center animate-pulse shadow-md">💀</button>
+            </div>
+            <div class="flex gap-1">
+                <div id="wood-stat" onclick="toggleMode('wood')" class="hidden flex items-center space-x-1 bg-amber-100 px-2 py-1 rounded-full border border-amber-200 cursor-pointer">
+                    <span>🪵</span> <span id="wood-count" class="font-bold text-amber-900">0</span>
+                </div>
+                <div id="food-stat" onclick="toggleMode('food')" class="hidden flex items-center space-x-1 bg-red-100 px-2 py-1 rounded-full border border-red-200 cursor-pointer">
+                    <span>🍎</span> <span id="food-count" class="font-bold text-red-900">0</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-1">
+            <div id="water-stat" onclick="toggleMode('water')" class="hidden flex items-center space-x-1 bg-blue-100 px-2 py-1 rounded-full border border-blue-200 cursor-pointer">
+                <span>💧</span> <span id="water-count" class="font-bold text-blue-900">0</span>
+            </div>
+            <div id="ore-stat" onclick="toggleMode('ore')" class="hidden flex items-center space-x-1 bg-slate-100 px-2 py-1 rounded-full border border-slate-200 cursor-pointer">
+                <span>💎</span> <span id="ore-count" class="font-bold text-slate-900">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Board -->
+    <div id="board" class="grid-container w-full px-2 relative"></div>
+
+    <!-- Square Build Buttons -->
+    <div class="mt-4 w-full max-w-md bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <div class="flex flex-wrap justify-center gap-3">
+            <button id="btn-house" onclick="toggleBuild('🏠')" class="hidden btn-build-sq bg-blue-600 text-white disabled:opacity-30 active:scale-90">🏠</button>
+            <button id="btn-castle" onclick="toggleBuild('🏰_BUILD')" class="hidden btn-build-sq bg-indigo-700 text-white disabled:opacity-30 active:scale-90">🏰</button>
+            <button id="btn-silo" onclick="toggleBuild('🧺')" class="hidden btn-build-sq bg-orange-600 text-white disabled:opacity-30 active:scale-90">🧺</button>
+            <button id="btn-tent" onclick="toggleBuild('🏕️')" class="hidden btn-build-sq bg-stone-600 text-white disabled:opacity-30 active:scale-90">🏕️</button>
+            <button id="btn-farm" onclick="toggleBuild('🌾')" class="hidden btn-build-sq bg-green-600 text-white disabled:opacity-30 active:scale-90">🌾</button>
+            <button id="btn-mine" onclick="toggleBuild('🏔️')" class="hidden btn-build-sq bg-slate-700 text-white disabled:opacity-30 active:scale-90">🏔️</button>
+        </div>
+        <div id="selection-msg" class="text-[10px] text-center text-blue-600 font-bold uppercase tracking-widest min-h-[15px] mt-4"></div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="modal-overlay" onclick="closeModal()">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full m-4 shadow-2xl" onclick="event.stopPropagation()">
+            <div class="flex border-b border-slate-100 mb-4 text-[10px]">
+                <button onclick="setTab('help')" id="tab-help" class="flex-1 py-2 font-bold border-b-2 border-blue-600 text-blue-600">Status</button>
+                <button onclick="setTab('build')" id="tab-build" class="flex-1 py-2 font-bold text-slate-400">Build</button>
+                <button onclick="setTab('prepare')" id="tab-prepare" class="hidden flex-1 py-2 font-bold text-slate-400">Prepare</button>
+                <button onclick="setTab('updates')" id="tab-updates" class="flex-1 py-2 font-bold text-slate-400">History</button>
+            </div>
+            
+            <div id="content-help" class="text-slate-600 space-y-4 text-sm text-center leading-relaxed">
+                <!-- Score Display -->
+                <div class="p-4 bg-slate-100 rounded-2xl border border-slate-200">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Score</p>
+                    <p id="live-score" class="text-4xl font-black text-slate-800">0</p>
+                </div>
+
+                <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                    <p class="text-amber-800 font-black uppercase text-xs">Main Objective</p>
+                    <p class="text-xl">🏰</p>
+                    <p class="text-amber-900 font-bold">Reach Castle Level 6</p>
+                </div>
+
+                <button onclick="openRestart()" class="w-full py-2 bg-red-100 text-red-500 rounded-lg font-bold hover:bg-red-200 transition-colors">Restart Kingdom</button>
+            </div>
+
+            <div id="content-build" class="hidden text-slate-600 space-y-3 text-sm">
+                <h3 class="font-black text-blue-600 uppercase italic mb-1 text-center">Structure Costs</h3>
+                <div id="build-cost-list" class="space-y-2"></div>
+            </div>
+
+            <div id="content-prepare" class="hidden text-slate-600 space-y-4 text-sm">
+                <div id="prepare-unlocked" class="space-y-2">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase text-center mb-2 text-xs">Disaster Readiness</p>
+                    <div id="scout-list" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+                </div>
+            </div>
+
+            <div id="content-updates" class="hidden text-[10px] text-slate-600 h-64 overflow-y-auto pr-2">
+                <ul id="history-list" class="space-y-4">
+                    <!-- Dynamic Version History -->
+                </ul>
+            </div>
+            <button onclick="closeModal()" class="w-full mt-6 bg-slate-100 py-2 rounded-lg font-bold text-slate-600">Close</button>
+        </div>
+    </div>
+
+    <script>
+        let wood = 0, food = 0, ore = 0, water = 0;
+        let selectedGridIndex = null, selectedMode = null, pendingDemolishIndex = null;
+        let selectedBuildType = null;
+        let currentActiveTab = 'help';
+        let grid = [], population = Array(25).fill(0), tileStrength = Array(25).fill(5), forestsLeft = 5, isGameOver = false;
+        let siloFood = Array(25).fill(0);
+        
+        let unlocked = {
+            wood: false, food: false, ore: false, water: false,
+            house: false, castle: false, silo: false, tent: false, farm: false, mine: false
+        };
+
+        const CASTLE_STAGES = ['⛺', '🏚️', '🛖', '🏛️', '🏯', '🏰'], ROMAN = ["", "I", "II", "III", "IV", "V"];
+        let calamities = ['fire', 'flood', 'famine', 'raid', 'plague', 'dragon'].sort(() => Math.random() - 0.5);
+        let calamityPointer = 0;
+
+        const VERSION_HISTORY = [
+            { v: "1.42", d: "CLEANUP: Moved Restart button to Help menu. Added Live Score to Help menu." },
+            { v: "1.41", d: "SCORING SYSTEM: Added comprehensive scoring with win/loss calculations." },
+            { v: "1.40", d: "SMART LOGIC V2: Completely rewrote isStuck()." },
+            { v: "1.39", d: "SMART LOGIC: Enhanced Game Over detection." },
+            { v: "1.38", d: "SMART GAME OVER: Added detection for stuck states." },
+            { v: "1.37", d: "BUG FIX: Syntax error in updateUI. Resource logic in Prepare tab." },
+            { v: "1.36", d: "COMPLETE HISTORY: All previous versions documented." },
+            { v: "1.35", d: "PREPARE FIXES: Resource counting for Fire/Dragon scouted correctly." },
+            { v: "1.34", d: "UI POLISH: Targeted highlighting." },
+            { v: "1.33", d: "SCOUTING UPDATE: Completed calamities disappear from tab." },
+            { v: "1.32", d: "BUG FIX: Stability fix for icon-only build buttons." },
+            { v: "1.31", d: "FIXED STRATEGIC LOCK: Silos/Tents hide correctly based on Ore." },
+            { v: "1.30", d: "BUILD COSTS: Moved structure pricing to a dynamic help tab." },
+            { v: "1.29", d: "UI CLEANUP: Square icon-only build buttons." },
+            { v: "1.28", d: "TAB VISIBILITY: Prepare tab auto-hides." },
+            { v: "1.27", d: "RAID SCOUTING: Shows Warriors needed vs owned." },
+            { v: "1.26", d: "CASTLE TIERING: Costs scale in increments of 10." },
+            { v: "1.25", d: "SCOUTING SYSTEM: Added Prepare tab and Castle warnings." },
+            { v: "1.24", d: "DIRECT PLACEMENT: Removed Build Queue." },
+            { v: "1.23", d: "SILO BUFF: Infinite silo storage." },
+            { v: "1.22", d: "MYSTERY UI: Overhauled 'How to Play' for discovery focus." },
+            { v: "1.21", d: "DISCOVERY UI: Progression-based UI unlocking." },
+            { v: "1.20", d: "ENERGY RESET: Fixed Mine/Farm worker exhaustion logic." },
+            { v: "1.19", d: "CALAMITIES: Introduced Calamity system." },
+            { v: "1.18", d: "NUMERAL FIX: Robust Roman numeral badge system." },
+            { v: "1.17", d: "TERRAFORMING: Reshaping land using raw resources." },
+            { v: "1.16", d: "REFILL MODE: Spend food to bring back villagers." },
+            { v: "1.15", d: "RECLAMATION: Draining water into empty land." },
+            { v: "1.14", d: "REGROWTH: Stumps turn back into forests." },
+            { v: "1.13", d: "CASTLE PROGRESSION: Multi-stage upgrades (⛺ to 🏯)." },
+            { v: "1.12", d: "DWELLING LEVELS: House upgrades to Houses and Manors." },
+            { v: "1.11", d: "EXHAUSTION: Resource tiles now deplete and reset." },
+            { v: "1.10", d: "VILLAGER AI: Logic for movement and retired workers." },
+            { v: "1.09", d: "POPULATION: Houses now spawn and hold villagers." },
+            { v: "1.08", d: "MINING: Introduced 🏔️ tiles and Ore collection." },
+            { v: "1.07", d: "ORE: Added 💎 resource stat." },
+            { v: "1.06", d: "FOOD: Added 🍎 resource stat." },
+            { v: "1.05", d: "FARMING: Introduced 🌾 tiles and harvest logic." },
+            { v: "1.04", d: "VISUALS: Refined tile depth and shadows." },
+            { v: "1.01", d: "WOOD: Added 🪵 resource stat and tree chopping." },
+            { v: "1.00", d: "FOUNDATION: The initial 5x5 grid engine." }
+        ];
+
+        function initGrid() {
+            let pool = ['🌲','🌲','🌲','🌲','🌲','🌊','🌊','🌊','🌊','🌊'];
+            while (pool.length < 25) pool.push('');
+            grid = pool.sort(() => Math.random() - 0.5);
+            population = Array(25).fill(0);
+            tileStrength = grid.map(cell => (cell === '🌊' ? 3 : 5));
+            forestsLeft = 5;
+            siloFood = Array(25).fill(0);
+            updateHistoryTab();
+        }
+
+        function toggleMode(mode) {
+            if (isGameOver) return;
+            const canEnter = (mode === 'wood' && wood >= 10) || (mode === 'food' && food >= 1) || (mode === 'water' && water >= 1) || (mode === 'ore' && ore >= 10);
+            selectedBuildType = null;
+            if (selectedMode === mode) selectedMode = null;
+            else if (canEnter) { selectedMode = mode; selectedGridIndex = null; }
+            updateUI();
+        }
+
+        function toggleBuild(type) {
+            if (isGameOver) return;
+            selectedMode = null;
+            selectedGridIndex = null;
+            if (selectedBuildType === type) selectedBuildType = null;
+            else selectedBuildType = type;
+            updateUI();
+        }
+
+        function getCastleLevel() {
+            let max = 0;
+            grid.forEach(c => { const idx = CASTLE_STAGES.indexOf(c.trim()); if (idx !== -1) max = Math.max(max, idx + 1); });
+            return max;
+        }
+
+        function getNextCastleCost() {
+            return (getCastleLevel() + 1) * 10;
+        }
+
+        function isStuck() {
+            if (ore >= getNextCastleCost()) return false;
+            const activeFarmers = grid.some((c, i) => c.trim() === '🌾' && population[i] > 0);
+            const activeMiners = grid.some((c, i) => c.trim() === '🏔️' && population[i] > 0);
+            const farmCount = grid.filter(c => c.trim() === '🌾').length;
+            const mineCount = grid.filter(c => c.trim() === '🏔️').length;
+            const treeCount = grid.filter(c => c.trim() === '🌲').length;
+            const emptyCount = grid.filter(c => c.trim() === '').length;
+            const cap = calculateCapacity();
+            const idlePop = grid.reduce((acc, c, i) => (['🏠','🏡','🏘️', ...CASTLE_STAGES].includes(c.trim())) ? acc + population[i] : acc, 0);
+            const canBuildFarm = emptyCount > 0 && farmCount < cap;
+            const canGenFood = activeFarmers || (idlePop > 0 && (farmCount > 0 || canBuildFarm));
+            const hasMinersOrPot = activeMiners || (idlePop > 0 && (mineCount > 0 || (emptyCount > 0 && (mineCount * 3 + 3 <= farmCount)))); 
+            const canFeedMiners = food > 0 || canGenFood;
+            if (hasMinersOrPot && canFeedMiners) return false;
+            const canBuildHouse = emptyCount > 0 && (wood >= 2 || treeCount > 0);
+            const canRefill = (food > 0 || canGenFood);
+            if (canBuildHouse || canRefill) return false;
+            return true;
+        }
+
+        function calculateScore() {
+            let score = 0;
+            const totalPop = population.reduce((a, b) => a + b, 0);
+            if (wood > 0) score += 5;
+            if (food > 0) score += 5;
+            if (totalPop > 0) score += 5;
+            score += ore * 1;
+            score += water * 5;
+            grid.forEach(c => {
+                const type = c.trim();
+                if (type === '') score += 5;
+                else if (type === '🔥') score -= 50;
+                else if (['🏠','🏡','🏘️','🧺','🏕️','🌾','🏔️'].includes(type)) score += 10;
+                else if (['🌲','🪵'].includes(type)) score += 2;
+                else {
+                    const castleIdx = CASTLE_STAGES.indexOf(type);
+                    if (castleIdx !== -1) score += (castleIdx + 1) * 50;
+                }
+            });
+            return score;
+        }
+
+        function updateUI() {
+            if (wood > 0) { unlocked.wood = unlocked.house = unlocked.silo = unlocked.tent = true; }
+            if (food > 0) unlocked.food = true;
+            if (ore > 0) { unlocked.ore = unlocked.castle = true; }
+            if (water > 0) unlocked.water = true;
+            if (calculateCapacity() > 0) unlocked.farm = true;
+            if (grid.filter(c => c.trim() === '🌾').length >= 3) unlocked.mine = true;
+
+            const nextCost = getNextCastleCost();
+            const canAffordUpgrade = ore >= nextCost;
+
+            if ((selectedBuildType === '🧺' || selectedBuildType === '🏕️') && !canAffordUpgrade) {
+                selectedBuildType = null;
+            }
+
+            document.getElementById('wood-stat').classList.toggle('hidden', !unlocked.wood);
+            document.getElementById('food-stat').classList.toggle('hidden', !unlocked.food);
+            document.getElementById('water-stat').classList.toggle('hidden', !unlocked.water);
+            document.getElementById('ore-stat').classList.toggle('hidden', !unlocked.ore);
+
+            ['wood', 'food', 'water', 'ore'].forEach(m => {
+                const el = document.getElementById(`${m}-stat`);
+                if (selectedMode === m) el.classList.add('active-resource-stat');
+                else el.classList.remove('active-resource-stat');
+            });
+
+            const buildMap = {'🏠': 'btn-house', '🏰_BUILD': 'btn-castle', '🧺': 'btn-silo', '🏕️': 'btn-tent', '🌾': 'btn-farm', '🏔️': 'btn-mine'};
+            Object.keys(buildMap).forEach(key => {
+                const btn = document.getElementById(buildMap[key]);
+                let isActuallyUnlocked = unlocked[buildMap[key].split('-')[1]];
+                if ((key === '🧺' || key === '🏕️') && !canAffordUpgrade) isActuallyUnlocked = false;
+                btn.classList.toggle('hidden', !isActuallyUnlocked);
+                if (selectedBuildType === key) btn.classList.add('btn-active');
+                else btn.classList.remove('btn-active');
+            });
+
+            const castleLvl = getCastleLevel();
+            document.getElementById('btn-house').disabled = wood < 2;
+            document.getElementById('btn-castle').disabled = !canAffordUpgrade || castleLvl >= 6;
+            document.getElementById('btn-silo').disabled = wood < 3;
+            document.getElementById('btn-tent').disabled = wood < 1;
+            document.getElementById('btn-farm').disabled = grid.filter(c => c.trim() === '🌾').length >= calculateCapacity();
+            document.getElementById('btn-mine').disabled = !(grid.filter(c => c.trim() === '🏔️').length * 3 + 3 <= grid.filter(c => c.trim() === '🌾').length);
+
+            document.getElementById('wood-count').innerText = wood;
+            document.getElementById('food-count').innerText = food;
+            document.getElementById('ore-count').innerText = ore;
+            document.getElementById('water-count').innerText = water;
+            
+            document.getElementById('win-crown-btn').className = grid.includes('🏰') ? 'flex w-7 h-7 rounded-full bg-yellow-400 text-lg flex items-center justify-center animate-bounce shadow-md' : 'hidden';
+            
+            if (isStuck()) {
+                document.getElementById('lose-skull-btn').className = 'flex w-7 h-7 rounded-full bg-slate-800 text-lg flex items-center justify-center animate-pulse shadow-md cursor-pointer';
+            } else {
+                document.getElementById('lose-skull-btn').className = 'hidden';
+            }
+
+            // Update live score in modal
+            const liveScore = calculateScore();
+            document.getElementById('live-score').innerText = liveScore;
+
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            grid.forEach((content, index) => {
+                const tile = document.createElement('div');
+                const cTrim = content.trim();
+                let highlightClass = '';
+
+                if (selectedGridIndex === index) {
+                    highlightClass = 'selected-grid';
+                } else if (selectedMode) {
+                    if (selectedMode === 'food') {
+                        if (['🏠','🏡','🏘️', ...CASTLE_STAGES, '🧺'].includes(cTrim)) highlightClass = 'selected-action';
+                    } else if (selectedMode === 'wood') {
+                        if (cTrim === '') highlightClass = 'selected-action';
+                    } else if (selectedMode === 'water') {
+                        if (cTrim === '' || cTrim === '🔥') highlightClass = 'selected-action';
+                    } else if (selectedMode === 'ore') {
+                        if (cTrim !== '' && cTrim !== '🌊') highlightClass = 'selected-demolish';
+                    }
+                } else if (selectedBuildType) {
+                    if (selectedBuildType === '🏰_BUILD') {
+                        const isFirst = !grid.some(c => CASTLE_STAGES.includes(c.trim()));
+                        if ((isFirst && cTrim === '') || (!isFirst && CASTLE_STAGES.includes(cTrim) && CASTLE_STAGES.indexOf(cTrim) < 5)) highlightClass = 'selected-action';
+                    } else if (selectedBuildType === '🏠') {
+                        if (cTrim === '' || cTrim === '🏠' || cTrim === '🏡') highlightClass = 'selected-action';
+                    } else if (['🧺', '🏕️', '🌾', '🏔️'].includes(selectedBuildType)) {
+                        if (cTrim === '') highlightClass = 'selected-action';
+                    }
+                }
+
+                tile.className = `tile ${cTrim === '' ? 'empty' : ''} ${highlightClass}`;
+                tile.innerHTML = content;
+                
+                if (population[index] > 0 || (cTrim === '🧺' && siloFood[index] > 0)) {
+                    const badge = document.createElement('div');
+                    let color = 'badge-dwelling';
+                    if (cTrim === '🌾') color = 'badge-farm';
+                    else if (cTrim === '🏔️') color = 'badge-mine';
+                    else if (CASTLE_STAGES.includes(cTrim)) color = 'badge-castle';
+                    else if (cTrim === '🪵') color = 'badge-stump';
+                    else if (cTrim === '🌊') color = 'badge-water';
+                    else if (cTrim === '🧺') color = 'badge-silo';
+                    badge.className = `pop-badge ${color}`;
+                    badge.innerText = cTrim === '🧺' ? siloFood[index] : population[index];
+                    tile.appendChild(badge);
+                    if (tileStrength[index] < 5 && ['🌾', '🏔️', '🪵', '🌊'].includes(cTrim)) {
+                        if (!['🪵', '🌊'].includes(cTrim) || (tileStrength[index] > 0 && tileStrength[index] < 3)) {
+                            const sb = document.createElement('div');
+                            sb.className = 'strength-badge'; sb.innerText = ROMAN[tileStrength[index]] || "";
+                            tile.appendChild(sb);
+                        }
+                    }
+                }
+                tile.onclick = () => !isGameOver && handleTileClick(index);
+                boardEl.appendChild(tile);
+            });
+
+            const msg = document.getElementById('selection-msg');
+            if (selectedBuildType) msg.innerText = `Placing ${selectedBuildType === '🏰_BUILD' ? '🏰' : selectedBuildType}`;
+            else if (selectedMode) msg.innerText = `Using ${selectedMode}`;
+            else if (selectedGridIndex !== null) msg.innerText = "Move Population?";
+            else msg.innerText = "";
+
+            updateTabs();
+        }
+
+        function handleTileClick(index) {
+            const content = grid[index].trim();
+            if (selectedMode) {
+                if (selectedMode === 'food') {
+                    if (['🏠','🏡','🏘️', ...CASTLE_STAGES].includes(content) && food >= 1) { food--; population[index] += 2; }
+                    else if (content === '🧺' && food >= 1) { let move = Math.min(food, 5); food -= move; siloFood[index] += move; }
+                } else if (selectedMode === 'water') {
+                    if (content === '' && water >= 1) { water--; grid[index] = '🌊'; tileStrength[index] = 3; }
+                    else if (content === '🔥' && water >= 1) { water--; grid[index] = ''; population[index] = 0; }
+                } else if (selectedMode === 'wood' && content === '' && wood >= 10) { wood -= 10; grid[index] = '🌲'; forestsLeft++; tileStrength[index] = 5; }
+                else if (selectedMode === 'ore' && content !== '🌊' && ore >= 10) { pendingDemolishIndex = index; document.getElementById('confirm-overlay').style.display = 'flex'; return; }
+                selectedMode = null; updateUI(); return;
+            }
+
+            if (selectedBuildType) {
+                const type = selectedBuildType;
+                let acted = false;
+                if (type === '🏰_BUILD') {
+                    const cost = getNextCastleCost();
+                    if (ore >= cost) {
+                        if (content === '' && !grid.some(c => CASTLE_STAGES.includes(c.trim()))) {
+                            document.getElementById('warning-overlay').style.display = 'flex';
+                            document.getElementById('confirm-castle-btn').onclick = () => {
+                                grid[index] = CASTLE_STAGES[0]; population[index] = 1; ore -= cost;
+                                document.getElementById('warning-overlay').style.display = 'none';
+                                triggerCalamity(); selectedBuildType = null; updateUI();
+                            };
+                            return;
+                        } else {
+                            const cIdx = CASTLE_STAGES.indexOf(content);
+                            if (cIdx !== -1 && cIdx < 5) { grid[index] = CASTLE_STAGES[cIdx + 1]; population[index] += 1; ore -= cost; acted = true; triggerCalamity(); }
+                        }
+                    }
+                } else if (type === '🏠' && wood >= 2) {
+                    if (content === '') { grid[index] = '🏠'; population[index] = 2; wood -= 2; acted = true; }
+                    else if (content === '🏠') { grid[index] = '🏡'; population[index] = 4; wood -= 2; acted = true; }
+                    else if (content === '🏡') { grid[index] = '🏘️'; population[index] = 6; wood -= 2; acted = true; }
+                } else if (type === '🧺' && wood >= 3 && content === '') { grid[index] = '🧺'; wood -= 3; acted = true; }
+                else if (type === '🏕️' && wood >= 1 && content === '') { grid[index] = '🏕️'; wood -= 1; acted = true; }
+                else if (type === '🌾' && content === '' && grid.filter(c => c.trim() === '🌾').length < calculateCapacity()) { grid[index] = '🌾'; tileStrength[index] = 5; acted = true; }
+                else if (type === '🏔️' && content === '' && grid.filter(c => c.trim() === '🏔️').length * 3 + 3 <= grid.filter(c => c.trim() === '🌾').length) { grid[index] = '🏔️'; tileStrength[index] = 5; acted = true; }
+                if (acted) { selectedBuildType = null; updateUI(); }
+                return;
+            }
+
+            if (content === '🌲') { grid[index] = '🪵'; tileStrength[index] = 3; wood += 5; forestsLeft--; updateUI(); return; }
+
+            if (selectedGridIndex === null) {
+                const isPopSource = ['🏠','🏡','🏘️', ...CASTLE_STAGES, '🏕️'].includes(content);
+                if (isPopSource && population[index] > 0) { selectedGridIndex = index; }
+                else if (content === '🌾' && population[index] > 0) { food += Math.max(0, tileStrength[index]--); if (tileStrength[index] <= 0) { population[index] = 0; tileStrength[index] = 5; } }
+                else if (content === '🏔️' && population[index] > 0 && food >= population[index]) { food -= population[index]; ore += (Math.max(0, tileStrength[index]--) * population[index]); if (tileStrength[index] <= 0) { population[index] = 0; tileStrength[index] = 5; } }
+                else if ((content === '🪵' || content === '🌊') && population[index] === 5 && food >= 5) {
+                    food -= 5; tileStrength[index]--;
+                    if (tileStrength[index] <= 0) {
+                        if (content === '🪵') { grid[index] = '🌲'; forestsLeft++; tileStrength[index] = 5; }
+                        else { grid[index] = ''; water++; tileStrength[index] = 5; }
+                        population[index] = 0;
+                    }
+                }
+            } else {
+                if (selectedGridIndex !== index) {
+                    if (content === '🌾' && population[index] < 1) { population[selectedGridIndex]--; population[index] = 1; tileStrength[index] = 5; }
+                    else if (content === '🏔️' && population[index] < 5) { population[selectedGridIndex]--; population[index]++; }
+                    else if ((content === '🪵' || content === '🌊') && population[index] < 5) { population[selectedGridIndex]--; population[index]++; }
+                    else if (content === '🏕️') { population[selectedGridIndex]--; population[index]++; }
+                }
+                selectedGridIndex = null;
+            }
+            updateUI();
+        }
+
+        function updateTabs() {
+            const nextCost = getNextCastleCost();
+            const canAffordUpgrade = ore >= nextCost;
+            const tabPrepareBtn = document.getElementById('tab-prepare');
+            if (!canAffordUpgrade || calamityPointer >= calamities.length) {
+                tabPrepareBtn.classList.add('hidden');
+                if (currentActiveTab === 'prepare') setTab('help');
+            } else {
+                tabPrepareBtn.classList.remove('hidden');
+                const scoutList = document.getElementById('scout-list');
+                scoutList.innerHTML = '';
+                calamities.slice(calamityPointer).forEach(cal => {
+                    const item = document.createElement('div');
+                    item.className = 'bg-white rounded-xl border border-slate-200 p-2 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors mb-2';
+                    const totalPop = population.reduce((a, b) => a + b, 0);
+                    const totalWarriors = grid.reduce((a, b, i) => b.trim() === '🏕️' ? a + population[i] : a, 0);
+                    const totalSiloFood = siloFood.reduce((a, b) => a + b, 0);
+                    const numTrees = grid.filter(c => c.trim() === '🌲' || c.trim() === '🪵').length;
+                    const empties = grid.filter(c => c.trim() === '').length;
+                    const numStructs = grid.filter(c => c.trim() !== '' && c.trim() !== '🌊' && c.trim() !== '🌲' && c.trim() !== '🪵').length;
+                    let req = '';
+                    if (cal === 'fire') req = `Douse: ${water}/${numTrees} 💧`;
+                    else if (cal === 'flood') req = `Levees: ${ore}/${empties * 2} 💎`;
+                    else if (cal === 'famine') req = `Reserves: ${totalSiloFood}/${totalPop} 🍎`;
+                    else if (cal === 'raid') req = `Army: ${totalWarriors}/${Math.ceil(ore / 5)} ⚔️`;
+                    else if (cal === 'plague') req = `Cure: ${food}/${totalPop * 2} 🍎`;
+                    else if (cal === 'dragon') req = `Slayers: ${totalWarriors}/${numStructs} ⚔️ ${food}/${totalWarriors * 5} 🍎`;
+                    const icons = {'fire':'🔥','flood':'🌊','famine':'🍞','raid':'⚔️','plague':'🤢','dragon':'🐉'};
+                    item.innerHTML = `<div class="flex justify-between items-center" onclick="this.nextElementSibling.classList.toggle('hidden')"><span class="font-bold uppercase tracking-tighter">${icons[cal]} ${cal}</span><span class="text-[10px] text-blue-600 font-bold">${req.split(':')[1]}</span></div><div class="hidden mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-500">Requirement: ${req.split(':')[1].trim()}</div>`;
+                    scoutList.appendChild(item);
+                });
+            }
+
+            const costList = document.getElementById('build-cost-list');
+            costList.innerHTML = '';
+            const buildItems = [
+                { id: 'house', icon: '🏠', name: 'Dwelling', cost: '2 🪵' },
+                { id: 'castle', icon: '🏰', name: 'Castle', cost: `${nextCost} 💎` },
+                { id: 'silo', icon: '🧺', name: 'Silo', cost: '3 🪵' },
+                { id: 'tent', icon: '🏕️', name: 'Battle Tent', cost: '1 🪵' },
+                { id: 'farm', icon: '🌾', name: 'Farm', cost: 'FREE' },
+                { id: 'mine', icon: '🏔️', name: 'Mine', cost: 'FREE' }
+            ];
+            buildItems.forEach(item => {
+                let isItemUnlocked = unlocked[item.id];
+                if ((item.id === 'silo' || item.id === 'tent') && !canAffordUpgrade) isItemUnlocked = false;
+                if (isItemUnlocked) {
+                    const el = document.createElement('div');
+                    el.className = 'flex justify-between p-2 bg-slate-50 rounded-xl border border-slate-100';
+                    el.innerHTML = `<span class="font-bold">${item.icon} ${item.name}</span><span class="font-black text-blue-600">${item.cost}</span>`;
+                    costList.appendChild(el);
+                }
+            });
+            if (!costList.innerHTML) costList.innerHTML = '<p class="text-center italic text-slate-400">Discover items and gather Ore to unlock buildings.</p>';
+        }
+
+        function updateHistoryTab() {
+            const list = document.getElementById('history-list');
+            if (!list) return;
+            list.innerHTML = '';
+            VERSION_HISTORY.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>v${item.v}:</strong> ${item.d}`;
+                list.appendChild(li);
+            });
+        }
+
+        function triggerCalamity() {
+            if (calamityPointer >= calamities.length) return;
+            const type = calamities[calamityPointer];
+            const options = document.getElementById('calamity-options');
+            options.innerHTML = '';
+            document.getElementById('calamity-icon').innerText = {'fire':'🔥','flood':'🌊','famine':'🍞','raid':'⚔️','plague':'🤢','dragon':'🐉'}[type];
+            document.getElementById('calamity-title').innerText = type.toUpperCase();
+            const totalPop = population.reduce((a, b) => a + b, 0);
+            const totalWarriors = grid.reduce((a, b, i) => b.trim() === '🏕️' ? a + population[i] : a, 0);
+            const totalSiloFood = siloFood.reduce((a, b) => a + b, 0);
+            if (type === 'fire') {
+                const numTrees = grid.filter(c => c.trim() === '🌲' || c.trim() === '🪵').length;
+                addCalamityBtn(options, 'Let it Burn', () => { grid = grid.map(c => (c.trim() === '🌲' || c.trim() === '🪵') ? '🔥' : c); });
+                if (water >= numTrees) addCalamityBtn(options, `Douse (${numTrees}💧)`, () => { water -= numTrees; });
+            } else if (type === 'flood') {
+                const empties = grid.filter(c => c.trim() === '').length;
+                addCalamityBtn(options, 'Accept Water', () => { grid = grid.map(c => c.trim() === '' ? '🌊' : c); });
+                if (ore >= empties * 2) addCalamityBtn(options, `Build Levees (${empties * 2}💎)`, () => { ore -= empties * 2; });
+            } else if (type === 'famine') {
+                addCalamityBtn(options, 'Starve', () => { food = 0; population = Array(25).fill(0); });
+                if (totalSiloFood >= totalPop) addCalamityBtn(options, `Eat Stored (${totalPop}🍎)`, () => { let n = totalPop; siloFood = siloFood.map(v => { let t = Math.min(v, n); n -= t; return v - t; }); });
+            } else if (type === 'raid') {
+                addCalamityBtn(options, 'Lose Ore', () => { ore = 0; });
+                if (totalWarriors > 0) addCalamityBtn(options, `Defend`, () => { let s = totalWarriors * 5; grid.forEach((c, i) => { if (c.trim() === '🏕️') population[i] = 0; }); ore = Math.min(ore, s); });
+            } else if (type === 'plague') {
+                addCalamityBtn(options, 'Lose Pop', () => { population = Array(25).fill(0); });
+                if (food >= totalPop * 2) addCalamityBtn(options, `Cure (${totalPop * 2}🍎)`, () => { food -= totalPop * 2; });
+            } else if (type === 'dragon') {
+                const numStructs = grid.filter(c => c.trim() !== '' && c.trim() !== '🌊' && c.trim() !== '🌲' && c.trim() !== '🪵').length;
+                addCalamityBtn(options, 'Suffer Wrath', () => { wood = food = ore = water = 0; grid = grid.map(c => (c.trim() !== '' && c.trim() !== '🌊' && c.trim() !== '🌲' && c.trim() !== '🪵') ? '🔥' : c); });
+                if (totalWarriors >= numStructs && food >= totalWarriors * 5) addCalamityBtn(options, `Slay Beast`, () => { food -= totalWarriors * 5; grid.forEach((c, i) => { if (c.trim() === '🏕️') population[i] = 0; }); });
+            }
+            addCalamityBtn(options, 'Admit Defeat', () => endGame('Surrendered', 'Legend lost.', 'text-slate-500', false), 'bg-slate-200 text-slate-700');
+            document.getElementById('calamity-overlay').style.display = 'flex'; calamityPointer++;
+        }
+
+        function addCalamityBtn(p, t, a, s = "bg-blue-600 text-white") {
+            const btn = document.createElement('button');
+            btn.className = `w-full py-3 rounded-2xl font-black uppercase text-xs shadow-md active:scale-95 transition-all ${s}`;
+            btn.innerText = t;
+            btn.onclick = () => { a(); document.getElementById('calamity-overlay').style.display = 'none'; updateUI(); }; p.appendChild(btn);
+        }
+
+        function executeDemolish() { if (pendingDemolishIndex !== null && ore >= 10) { ore -= 10; grid[pendingDemolishIndex] = ''; population[pendingDemolishIndex] = 0; tileStrength[pendingDemolishIndex] = 5; siloFood[pendingDemolishIndex] = 0; } closeConfirm(); updateUI(); }
+        function closeConfirm() { document.getElementById('confirm-overlay').style.display = 'none'; pendingDemolishIndex = null; }
+        function closeWarning() { document.getElementById('warning-overlay').style.display = 'none'; }
+        function closeRestart() { document.getElementById('restart-overlay').style.display = 'none'; }
+        function openRestart() { document.getElementById('restart-overlay').style.display = 'flex'; }
+        function calculateCapacity() { let cap = 0; grid.forEach(c => { if (c.trim() === '🏠') cap += 1; else if (c.trim() === '🏡') cap += 2; else if (c.trim() === '🏘️') cap += 3; }); return cap; }
+        function openModal() { document.getElementById('modal-overlay').style.display = 'flex'; setTab('help'); }
+        function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+        
+        function endGame(m, s, c, isWin) { 
+            isGameOver = true; 
+            let finalScore = calculateScore();
+            if (!isWin && finalScore > 0) finalScore = Math.floor(finalScore / 2);
+            
+            document.getElementById('status-text').innerText = m; 
+            document.getElementById('status-subtext').innerText = s; 
+            document.getElementById('status-text').className = `text-4xl font-black mb-2 uppercase ${c}`; 
+            
+            const scoreDisplay = document.getElementById('score-display');
+            scoreDisplay.innerHTML = `
+                <div class="text-center">
+                    <p class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Final Score</p>
+                    <p class="text-5xl font-black text-slate-800">${finalScore}</p>
+                    ${!isWin && finalScore > 0 ? '<p class="text-xs text-red-500 font-bold mt-2">(Halved due to Defeat)</p>' : ''}
+                </div>
+            `;
+            
+            document.getElementById('game-over-overlay').style.display = 'flex'; 
+        }
+
+        function setTab(t) {
+            currentActiveTab = t;
+            ['help', 'build', 'prepare', 'updates'].forEach(key => {
+                const content = document.getElementById(`content-${key}`);
+                if (content) content.classList.toggle('hidden', key !== t);
+                const btn = document.getElementById(`tab-${key}`);
+                if (btn) btn.className = key === t ? 'flex-1 py-2 font-bold border-b-2 border-blue-600 text-blue-600' : 'flex-1 py-2 font-bold text-slate-400';
+            });
+        }
+        window.onload = () => { initGrid(); updateUI(); };
+    </script>
+</body>
+</html>
