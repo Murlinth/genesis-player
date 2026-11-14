@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money Tools — Timer &amp; Income Calculator</title>
+<style>
+  * { box-sizing: border-box; font-family: "Roboto", system-ui, -apple-system, sans-serif; }
+  body {
+    background-color: #f3f4f6; color: #212121;
+    display: flex; justify-content: center; align-items: flex-start;
+    min-height: 100vh; margin: 0; padding: 1rem;
+  }
+  .card {
+    background: white; padding: 1.75rem; border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    width: 100%; max-width: 430px;
+  }
+  h1 { margin: 0 0 1.25rem; color: #1f2937; text-align: center; font-size: 1.5rem; }
+  h2 { margin: 0 0 1rem; color: #1f2937; text-align: center; font-size: 1.15rem; }
+  .input-group { margin-bottom: 1rem; }
+  label { display: block; margin-bottom: 0.35rem; font-weight: 600; color: #374151; font-size: 0.9rem; }
+  input {
+    width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px;
+    font-size: 1rem; outline: none;
+  }
+  input:focus { border-color: #2563eb; }
+  section { margin-top: 1.75rem; padding-top: 1.5rem; border-top: 1px solid #e5e7eb; }
+  #display {
+    font-size: 3em; color: #0b8043; margin: 10px 0 16px;
+    font-weight: bold; text-align: center; font-variant-numeric: tabular-nums;
+  }
+  .btn-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  button {
+    padding: 12px 20px; font-size: 1.05em; border-radius: 8px; border: 1px solid #333;
+    background: #BDE7F6; color: #212121; font-weight: bold; cursor: pointer;
+  }
+  button:active { background: #8fd3ef; }
+  .override-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid #e5e7eb; }
+  .override-section p { margin: 5px 0; color: #6b7280; font-size: 0.9rem; text-align: center; }
+  .override-row { margin-bottom: 15px; text-align: center; }
+  .override-row input { width: 130px; text-align: center; padding: 10px; }
+  .override-row input.small-input { width: 70px; }
+  .override-row button { padding: 10px 14px; font-size: 1em; background: #e5e7eb; border-color: #9ca3af; }
+  .results { margin-top: 1.25rem; }
+  .result-row { display: flex; justify-content: space-between; margin-bottom: 0.6rem; font-size: 0.95rem; }
+  .result-row.highlight { font-size: 1.1rem; font-weight: bold; color: #059669; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Money Tools</h1>
+
+  <div class="input-group">
+    <label for="rate">Hourly Rate ($)</label>
+    <input type="number" id="rate" placeholder="Hourly Rate ($)" min="0" step="0.01">
+  </div>
+
+  <section>
+    <h2>Money Timer</h2>
+    <div id="display">$0.0000</div>
+    <div class="btn-row">
+      <button onclick="start()">Start</button>
+      <button onclick="stop()">Stop</button>
+      <button onclick="reset()">Reset</button>
+    </div>
+
+    <div class="override-section">
+      <div class="override-row">
+        <p>Set starting money:</p>
+        <input type="number" id="startAmount" placeholder="Amount ($)">
+        <button onclick="setMoney()">Set $</button>
+      </div>
+
+      <div class="override-row">
+        <p>Or set time worked:</p>
+        <input type="number" id="startHours" class="small-input" placeholder="Hrs">
+        <input type="number" id="startMins" class="small-input" placeholder="Mins">
+        <button onclick="setTime()">Set Time</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Income Calculator</h2>
+
+    <div class="input-group">
+      <label for="dailyHours">Hours per Day</label>
+      <input type="number" id="dailyHours" placeholder="e.g. 8" min="0" max="24" step="0.5">
+    </div>
+
+    <div class="input-group">
+      <label for="daysPerWeek">Days per Week</label>
+      <input type="number" id="daysPerWeek" placeholder="e.g. 5" min="0" max="7" step="0.5">
+    </div>
+
+    <div class="results">
+      <div class="result-row">
+        <span>Daily Income:</span>
+        <span id="dailyDisplay">$0.00</span>
+      </div>
+      <div class="result-row">
+        <span>Weekly Income:</span>
+        <span id="weeklyDisplay">$0.00</span>
+      </div>
+      <div class="result-row">
+        <span>Monthly Income:</span>
+        <span id="monthlyDisplay">$0.00</span>
+      </div>
+      <div class="result-row highlight">
+        <span>Annual Income:</span>
+        <span id="annualDisplay">$0.00</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ---- Money Timer (keeps counting while the page is closed, via localStorage) ----
+  let timer, lastTime;
+  let total = parseFloat(localStorage.getItem('moneyTotal')) || 0;
+
+  document.getElementById('rate').value = localStorage.getItem('moneyRate') || 15;
+  document.getElementById('display').innerText = '$' + total.toFixed(4);
+
+  if (localStorage.getItem('isRunning') === 'true') {
+    let savedLastTime = parseInt(localStorage.getItem('lastTime'));
+    let savedRate = parseFloat(document.getElementById('rate').value);
+    if (savedLastTime && savedRate) {
+      let ratePerMs = (savedRate / 3600) / 1000;
+      total += (Date.now() - savedLastTime) * ratePerMs;
+    }
+    start();
+  }
+
+  function start() {
+    if (!timer) {
+      lastTime = Date.now();
+      localStorage.setItem('isRunning', 'true');
+
+      timer = setInterval(() => {
+        let now = Date.now();
+        let rate = document.getElementById('rate').value;
+        let ratePerMs = (rate / 3600) / 1000;
+
+        total += (now - lastTime) * ratePerMs;
+        lastTime = now;
+
+        updateStorage();
+        document.getElementById('display').innerText = '$' + total.toFixed(4);
+      }, 100);
+    }
+  }
+
+  function stop() {
+    clearInterval(timer);
+    timer = null;
+    localStorage.setItem('isRunning', 'false');
+  }
+
+  function reset() {
+    stop();
+    total = 0;
+    updateStorage();
+    document.getElementById('display').innerText = '$0.0000';
+  }
+
+  function setMoney() {
+    let manualAmount = parseFloat(document.getElementById('startAmount').value);
+    if (!isNaN(manualAmount) && manualAmount >= 0) {
+      total = manualAmount;
+      updateStorage();
+      document.getElementById('display').innerText = '$' + total.toFixed(4);
+      document.getElementById('startAmount').value = '';
+    }
+  }
+
+  function setTime() {
+    let hrs = parseFloat(document.getElementById('startHours').value) || 0;
+    let mins = parseFloat(document.getElementById('startMins').value) || 0;
+    let rate = parseFloat(document.getElementById('rate').value) || 0;
+
+    if ((hrs > 0 || mins > 0) && rate > 0) {
+      let totalHours = hrs + (mins / 60);
+      total = totalHours * rate;
+      updateStorage();
+      document.getElementById('display').innerText = '$' + total.toFixed(4);
+      document.getElementById('startHours').value = '';
+      document.getElementById('startMins').value = '';
+    }
+  }
+
+  function updateStorage() {
+    localStorage.setItem('moneyTotal', total);
+    if (timer) localStorage.setItem('lastTime', lastTime);
+    localStorage.setItem('moneyRate', document.getElementById('rate').value);
+  }
+
+  // ---- Income Calculator (shares the Hourly Rate above) ----
+  const hourlyRateInput = document.getElementById('rate');
+  const dailyHoursInput = document.getElementById('dailyHours');
+  const daysPerWeekInput = document.getElementById('daysPerWeek');
+
+  const dailyDisplay = document.getElementById('dailyDisplay');
+  const weeklyDisplay = document.getElementById('weeklyDisplay');
+  const monthlyDisplay = document.getElementById('monthlyDisplay');
+  const annualDisplay = document.getElementById('annualDisplay');
+
+  function calculate() {
+    const rate = parseFloat(hourlyRateInput.value) || 0;
+    const hours = parseFloat(dailyHoursInput.value) || 0;
+    const days = parseFloat(daysPerWeekInput.value) || 0;
+
+    const daily = rate * hours;
+    const weekly = daily * days;
+    const annual = weekly * 52;
+    const monthly = annual / 12;
+
+    const format = (num) => '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    dailyDisplay.textContent = format(daily);
+    weeklyDisplay.textContent = format(weekly);
+    monthlyDisplay.textContent = format(monthly);
+    annualDisplay.textContent = format(annual);
+  }
+
+  hourlyRateInput.addEventListener('input', calculate);
+  dailyHoursInput.addEventListener('input', calculate);
+  daysPerWeekInput.addEventListener('input', calculate);
+  calculate();
+</script>
+
+</body>
+</html>
