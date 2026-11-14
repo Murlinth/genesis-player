@@ -254,6 +254,12 @@
     ])
   ];
 
+  // Cross-album Favorites collection, presented as its own album (built from
+  // the visitor's saved hearts; tracks remember which album they came from)
+  var FAV_COVER = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e0245e'/%3E%3Cpath d='M50 84C26 65 14 51 14 35 14 23 23 15 33 15c7 0 14 4 17 10 3-6 10-10 17-10 10 0 19 8 19 20 0 16-12 30-36 49z' fill='%23ffffff'/%3E%3C/svg%3E";
+  var FAV_ALBUM = { id: "favorites", title: "Favorites", artist: "Jacob Aird", cover: FAV_COVER, tracks: [] };
+  ALBUMS.push(FAV_ALBUM);
+
   var $ = function (id) { return document.getElementById(id); };
   var els = {
     albums: $("albums"), cover: $("cover"), title: $("title"), artist: $("artist"),
@@ -300,19 +306,39 @@
     } catch (_) {}
   }
   function isFav(aid, i) { return (favorites[aid] || []).indexOf(i) !== -1; }
+  var favCountEl = null;            // the Favorites album card's track-count label
+  function refreshFavoritesAlbum() {
+    FAV_ALBUM.tracks = [];
+    ALBUMS.forEach(function (a) {
+      if (a.id === "favorites") return;
+      (favorites[a.id] || []).slice().sort(function (x, y) { return x - y; }).forEach(function (i) {
+        var t = a.tracks[i];
+        if (t) FAV_ALBUM.tracks.push({ title: t.title, len: t.len, secs: t.secs, file: t.file, srcAlbum: a.id, srcIndex: i });
+      });
+    });
+    if (favCountEl) favCountEl.textContent = FAV_ALBUM.tracks.length + (FAV_ALBUM.tracks.length === 1 ? " track" : " tracks");
+  }
   function toggleFav(i) {
-    var aid = A().id;
+    var t = A().tracks[i];
+    var aid = t && t.srcAlbum ? t.srcAlbum : A().id;
+    var ti = t && t.srcAlbum ? t.srcIndex : i;
     var arr = favorites[aid] || (favorites[aid] = []);
-    var k = arr.indexOf(i);
-    if (k === -1) arr.push(i); else arr.splice(k, 1);
+    var k = arr.indexOf(ti);
+    if (k === -1) arr.push(ti); else arr.splice(k, 1);
     savePrefs();
-    if (favFilter) { buildList(); render(); }
+    refreshFavoritesAlbum();
+    if (A().id === "favorites") {
+      if (current >= A().tracks.length) current = Math.max(0, A().tracks.length - 1);
+      buildList(); render();
+    } else if (favFilter) { buildList(); render(); }
     renderFavs();
   }
   function renderFavs() {
     var rows = els.list.querySelectorAll(".track");
     for (var r = 0; r < rows.length; r++) {
-      var on = isFav(A().id, +rows[r].getAttribute("data-idx"));
+      var idx = +rows[r].getAttribute("data-idx");
+      var t = A().tracks[idx];
+      var on = t && t.srcAlbum ? isFav(t.srcAlbum, t.srcIndex) : isFav(A().id, idx);
       var f = rows[r].querySelector(".fav");
       if (f) { f.classList.toggle("on", on); f.setAttribute("aria-pressed", on ? "true" : "false"); }
     }
@@ -337,7 +363,7 @@
 
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
   function getUrl(a, i) {
-    var key = a.id + ":" + i;
+    var key = a.id + ":" + i + ":" + a.tracks[i].file;
     if (!cache[key]) {
       var p = fetch(a.tracks[i].file)
         .then(function (r) {
@@ -375,6 +401,7 @@
       b.querySelector(".at").textContent = a.title;
       b.querySelector(".aa").textContent = a.artist;
       b.querySelector(".ac").textContent = a.tracks.length + (a.tracks.length === 1 ? " track" : " tracks");
+      if (a.id === "favorites") favCountEl = b.querySelector(".ac");
       b.addEventListener("click", function () { selectAlbum(i); });
       els.albums.appendChild(b);
     });
@@ -384,12 +411,14 @@
     els.list.innerHTML = "";
     viewList = [];
     A().tracks.forEach(function (t, i) {
-      if (!favFilter || isFav(A().id, i)) viewList.push(i);
+      if (A().id === "favorites" || !favFilter || isFav(A().id, i)) viewList.push(i);
     });
     if (!viewList.length) {
       var li0 = document.createElement("li");
       li0.className = "empty-note";
-      li0.textContent = "No favorites in this album yet \u2014 tap a heart to add one.";
+      li0.textContent = A().id === "favorites"
+        ? "No favorites yet \u2014 tap a heart on any song, in any album, and it will show up here."
+        : "No favorites in this album yet \u2014 tap a heart to add one.";
       els.list.appendChild(li0);
       return;
     }
@@ -431,6 +460,7 @@
     var cards = els.albums.querySelectorAll(".album");
     for (var i = 0; i < cards.length; i++) cards[i].setAttribute("aria-pressed", i === albumIdx ? "true" : "false");
     els.version.classList.toggle("show", a.id === "genesis");
+    els.favFilter.style.display = a.id === "favorites" ? "none" : "";
     buildList();
     render();
   }
@@ -452,12 +482,19 @@
       if (on) rows[i].setAttribute("aria-current", "true");
       else rows[i].removeAttribute("aria-current");
     }
+    if (!T()) {
+      els.now.textContent = A().id === "favorites" ? "No favorites yet" : "";
+      document.title = A().title + " \u2013 " + A().artist;
+      updateTime();
+      return;
+    }
     els.now.textContent = T().title;
     document.title = T().title + " \u2013 " + A().title + " \u2013 " + A().artist;
     updateTime();
   }
 
   function duration() {
+    if (!T()) return 0;
     if (loaded === current && isFinite(audio.duration) && audio.duration > 0) return audio.duration;
     return T().secs;
   }
@@ -465,7 +502,7 @@
   function updateTime() {
     var pos = loaded === current ? audio.currentTime : 0;
     var dur = duration();
-    var pct = Math.min(100, (pos / dur) * 100);
+    var pct = dur > 0 ? Math.min(100, (pos / dur) * 100) : 0;
     els.fill.style.width = pct + "%";
     els.fill.classList.toggle("empty", pct <= 0);
     els.cur.textContent = fmt(pos);
@@ -529,6 +566,7 @@
   }
 
   function toggle() {
+    if (!T()) return;
     if (loaded !== current) { select(current, true); return; }
     if (audio.paused) audio.play().catch(function () {});
     else audio.pause();
@@ -631,6 +669,7 @@
   document.addEventListener("dragstart", function (e) { e.preventDefault(); });
 
   watchImage(els.cover);
+  refreshFavoritesAlbum();
   buildAlbums();
   renderAlbum();
   renderModes();
