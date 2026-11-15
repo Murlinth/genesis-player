@@ -300,7 +300,7 @@
   var vocalMode = false;            // version toggle state (Genesis only for now)
   // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
   // While a track has no entry, flipping the toggle changes nothing about playback.
-  var VOCAL_FILES = {};
+  var VOCAL_FILES = { genesis: { 1: "track2v.mp3" } };
 
   // Shuffle / repeat / favorites — favorites and mode choices live in this
   // browser only (localStorage); there is no account and no cross-device sync.
@@ -378,10 +378,16 @@
   function setStatus(msg) { els.status.textContent = msg || ""; }
 
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
+  function effFile(a, i) {
+    if (vocalMode && VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) return VOCAL_FILES[a.id][i];
+    return a.tracks[i].file;
+  }
+
   function getUrl(a, i) {
-    var key = a.id + ":" + i + ":" + a.tracks[i].file;
+    var file = effFile(a, i);
+    var key = a.id + ":" + i + ":" + file;
     if (!cache[key]) {
-      var p = fetch(a.tracks[i].file)
+      var p = fetch(file)
         .then(function (r) {
           if (!r.ok) throw new Error("HTTP " + r.status);
           return r.blob();
@@ -481,13 +487,28 @@
     render();
   }
 
-  // Version toggle: flips state and button styling only, for now.
-  // TODO (when vocal files exist): if VOCAL_FILES[A().id] has the current track,
-  // swap the audio source to that file, restore audio.currentTime, and resume.
+  // Version toggle: flips state; if the current track has a vocal version,
+  // swap the audio source to the other version, restore position, and resume.
   function setVocalMode(on) {
     vocalMode = on;
     els.verInst.setAttribute("aria-pressed", on ? "false" : "true");
     els.verVocal.setAttribute("aria-pressed", on ? "true" : "false");
+    if (loaded < 0 || !T()) return;
+    var a = A();
+    if (!VOCAL_FILES[a.id] || !VOCAL_FILES[a.id][current]) return;
+    var t = audio.currentTime;
+    var wasPlaying = !audio.paused;
+    var my = ++token;
+    getUrl(a, current).then(function (url) {
+      if (my !== token) return;
+      audio.src = url;
+      var restore = function () {
+        try { audio.currentTime = t; } catch (_) {}
+        audio.removeEventListener("loadedmetadata", restore);
+        if (wasPlaying) audio.play();
+      };
+      audio.addEventListener("loadedmetadata", restore);
+    }).catch(function () {});
   }
 
   function render() {
