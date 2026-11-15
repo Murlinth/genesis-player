@@ -302,6 +302,7 @@
   // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
   // While a track has no entry, flipping the toggle changes nothing about playback.
   var VOCAL_FILES = { genesis: { 1: "track2v.mp3", 7: "track8v.mp3" } };
+  var INST_FILES = { rexburg: { 0: "rb01i.mp3", 1: "rb02i.mp3", 2: "rb03i.mp3" } };
 
   // Shuffle / repeat / favorites — favorites and mode choices live in this
   // browser only (localStorage); there is no account and no cross-device sync.
@@ -381,6 +382,7 @@
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
   function effFile(a, i) {
     if (vocalMode && VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) return VOCAL_FILES[a.id][i];
+    if (!vocalMode && INST_FILES[a.id] && INST_FILES[a.id][i]) return INST_FILES[a.id][i];
     return a.tracks[i].file;
   }
 
@@ -482,7 +484,7 @@
     els.artist.textContent = a.artist;
     var cards = els.albums.querySelectorAll(".album");
     for (var i = 0; i < cards.length; i++) cards[i].setAttribute("aria-pressed", i === albumIdx ? "true" : "false");
-    els.version.classList.toggle("show", a.id === "genesis");
+    els.version.classList.toggle("show", !!(VOCAL_FILES[a.id] || INST_FILES[a.id]));
     els.favFilter.style.display = a.id === "favorites" ? "none" : "";
     buildList();
     render();
@@ -496,7 +498,7 @@
     els.verVocal.setAttribute("aria-pressed", on ? "true" : "false");
     if (loaded < 0 || !T()) return;
     var a = A();
-    if (!VOCAL_FILES[a.id] || !VOCAL_FILES[a.id][current]) return;
+    if (!(VOCAL_FILES[a.id] && VOCAL_FILES[a.id][current]) && !(INST_FILES[a.id] && INST_FILES[a.id][current])) return;
     var t = audio.currentTime;
     var wasPlaying = !audio.paused;
     var my = ++token;
