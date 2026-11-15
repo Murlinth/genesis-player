@@ -225,7 +225,7 @@
   }
 
   var ALBUMS = [
-    album("genesis", "Genesis", "Jacob Aird", "cover.png", "track", 1, [
+    album("genesis", "Genesis (Vocal)", "Jacob Aird", "cover.png", "track", 1, [
       ["Family Medley", "2:48"],
       ["Light of Christ", "3:06"],
       ["He is the Plan", "4:11"],
@@ -234,6 +234,16 @@
       ["Mother I Love You", "0:56"],
       ["His Kingdom", "2:48"],
       ["Jacob's Lullaby", "3:42"]
+    ]),
+    album("genesis-inst", "Genesis (Instrumental)", "Jacob Aird", "cover.png", "track", 1, [
+      ["Family Medley", "2:48"],
+      ["Light of Christ (Instrumental)", "3:06"],
+      ["He is the Plan", "4:11"],
+      ["All Over Again (Instrumental)", "4:06"],
+      ["Heaven Medley", "4:51"],
+      ["Mother I Love You", "0:56"],
+      ["His Kingdom", "2:48"],
+      ["Jacob's Lullaby (Instrumental)", "3:42"]
     ]),
     album("highschool", "Jacob in Highschool", "Jacob Aird", "hs-cover.png", "hs", 2, [
       ["Mister Macagorian", "1:20"],
@@ -259,10 +269,20 @@
       ["Doodle Worlds", "1:37"],
       ["The Messenger", "3:48"]
     ]),
-    album("rexburg", "Rexburg", "Jacob Aird", "rb-cover.png", "rb", 2, [
+    album("rexburg", "Rexburg (Vocal)", "Jacob Aird", "rb-cover.png", "rb", 2, [
       ["I Just Don\u2019t Get This Game", "6:18"],
       ["Jack of All Trades", "2:25"],
       ["Sparrow", "4:31"],
+      ["Esoteric", "3:47"],
+      ["Okay With Different", "3:32"],
+      ["Farmer Jeff", "2:40"],
+      ["Inverse Dimensions", "4:21"],
+      ["Cannons from Lower Deck", "3:53"]
+    ]),
+    album("rexburg-inst", "Rexburg (Instrumental)", "Jacob Aird", "rb-cover.png", "rb", 2, [
+      ["I Just Don’t Get This Game (Instrumental)", "6:18"],
+      ["Jack of All Trades (Instrumental)", "2:25"],
+      ["Sparrow (Instrumental)", "4:31"],
       ["Esoteric", "3:47"],
       ["Okay With Different", "3:32"],
       ["Farmer Jeff", "2:40"],
@@ -302,7 +322,7 @@
   // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
   // While a track has no entry, flipping the toggle changes nothing about playback.
   var VOCAL_FILES = { genesis: { 1: "track2v.mp3", 3: "track4v.mp3", 7: "track8v.mp3" } };
-  var INST_FILES = { rexburg: { 0: "rb01i.mp3", 1: "rb02i.mp3", 2: "rb03i.mp3" } };
+  var INST_FILES = { "rexburg-inst": { 0: "rb01i.mp3", 1: "rb02i.mp3", 2: "rb03i.mp3" } };
 
   // Shuffle / repeat / favorites — favorites and mode choices live in this
   // browser only (localStorage); there is no account and no cross-device sync.
@@ -381,8 +401,12 @@
 
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
   function effFile(a, i) {
-    if (vocalMode && VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) return VOCAL_FILES[a.id][i];
-    if (!vocalMode && INST_FILES[a.id] && INST_FILES[a.id][i]) return INST_FILES[a.id][i];
+    var t = a.tracks[i];
+    if (t && t.srcAlbum) {
+      for (var k = 0; k < ALBUMS.length; k++) if (ALBUMS[k].id === t.srcAlbum) return effFile(ALBUMS[k], t.srcIndex);
+    }
+    if (VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) return VOCAL_FILES[a.id][i];
+    if (INST_FILES[a.id] && INST_FILES[a.id][i]) return INST_FILES[a.id][i];
     return a.tracks[i].file;
   }
 
@@ -484,7 +508,7 @@
     els.artist.textContent = a.artist;
     var cards = els.albums.querySelectorAll(".album");
     for (var i = 0; i < cards.length; i++) cards[i].setAttribute("aria-pressed", i === albumIdx ? "true" : "false");
-    els.version.classList.toggle("show", !!(VOCAL_FILES[a.id] || INST_FILES[a.id]));
+    els.version.classList.toggle("show", false);
     els.favFilter.style.display = a.id === "favorites" ? "none" : "";
     buildList();
     render();
