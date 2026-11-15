@@ -146,6 +146,7 @@
   .version button:first-child { border-radius: 999px 0 0 999px; }
   .version button:last-child { border-radius: 0 999px 999px 0; border-left: none; }
   .version button[aria-pressed="true"] { background: var(--head); font-weight: 700; }
+  .version button:disabled { opacity: .35; cursor: default; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -301,7 +302,7 @@
   var vocalMode = false;            // version toggle state (Genesis only for now)
   // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
   // While a track has no entry, flipping the toggle changes nothing about playback.
-  var VOCAL_FILES = { genesis: { 1: "track2v.mp3", 3: "track4v.mp3", 7: "track8v.mp3" } };
+  var VOCAL_FILES = { genesis: { 1: "track2v.mp3", 2: "track3v.mp3", 3: "track4v.mp3", 7: "track8v.mp3" } };
   var INST_FILES = { rexburg: { 0: "rb01i.mp3", 1: "rb02i.mp3", 2: "rb03i.mp3" } };
 
   // Shuffle / repeat / favorites — favorites and mode choices live in this
@@ -380,6 +381,24 @@
   function setStatus(msg) { els.status.textContent = msg || ""; }
 
   // Fetch the MP3 and hand the player a blob URL so the file URL is not exposed in the page.
+  // Which versions exist for a track: paired tracks have both; in an album
+  // that has any paired tracks, an unpaired track is an instrumental piece
+  // with no vocal version, so its Vocal button is disabled and faded.
+  function trackVersions(a, i) {
+    var paired = !!((VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) || (INST_FILES[a.id] && INST_FILES[a.id][i]));
+    if (paired) return { vocal: true, inst: true };
+    if (VOCAL_FILES[a.id] || INST_FILES[a.id]) return { vocal: false, inst: true };
+    return { vocal: false, inst: false };
+  }
+  function updateVersionButtons() {
+    var v = trackVersions(A(), current);
+    els.verVocal.disabled = !v.vocal;
+    els.verInst.disabled = !v.inst;
+    var effVocal = vocalMode && v.vocal;
+    els.verInst.setAttribute("aria-pressed", effVocal ? "false" : "true");
+    els.verVocal.setAttribute("aria-pressed", effVocal ? "true" : "false");
+  }
+
   function effFile(a, i) {
     if (vocalMode && VOCAL_FILES[a.id] && VOCAL_FILES[a.id][i]) return VOCAL_FILES[a.id][i];
     if (!vocalMode && INST_FILES[a.id] && INST_FILES[a.id][i]) return INST_FILES[a.id][i];
@@ -515,6 +534,7 @@
   }
 
   function render() {
+    updateVersionButtons();
     var rows = els.list.querySelectorAll(".track");
     for (var i = 0; i < rows.length; i++) {
       var on = +rows[i].getAttribute("data-idx") === current;
