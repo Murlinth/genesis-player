@@ -187,8 +187,8 @@
     </button>
   </div>
   <div class="version" id="version" role="group" aria-label="Version">
-    <button type="button" id="verInst" aria-pressed="true">Instrumental</button>
-    <button type="button" id="verVocal" aria-pressed="false">Vocal</button>
+    <button type="button" id="verVocal" aria-pressed="true">Vocal</button>
+    <button type="button" id="verInst" aria-pressed="false">Instrumental</button>
   </div>
   <p class="status" id="status" role="status" aria-live="polite"></p>
 
@@ -226,6 +226,17 @@
   }
 
   var ALBUMS = [
+    album("rexburg", "Rexburg", "Jacob Aird", "rb-cover.png", "rb", 2, [
+      ["I Just Don\u2019t Get This Game", "6:18"],
+      ["Jack of All Trades", "2:25"],
+      ["Sparrow", "4:31"],
+      ["Esoteric", "3:47"],
+      ["Okay With Different", "3:32"],
+      ["Farmer Jeff", "2:40"],
+      ["Inverse Dimensions", "4:21"],
+      ["Cannons from Lower Deck", "3:53"],
+      ["Wizard’s Bar", "3:58"]
+    ]),
     album("genesis", "Genesis", "Jacob Aird", "cover.png", "track", 1, [
       ["Family Medley", "2:48"],
       ["Light of Christ", "3:06"],
@@ -260,17 +271,6 @@
       ["Doodle Worlds", "1:37"],
       ["The Messenger", "3:48"]
     ]),
-    album("rexburg", "Rexburg", "Jacob Aird", "rb-cover.png", "rb", 2, [
-      ["I Just Don\u2019t Get This Game", "6:18"],
-      ["Jack of All Trades", "2:25"],
-      ["Sparrow", "4:31"],
-      ["Esoteric", "3:47"],
-      ["Okay With Different", "3:32"],
-      ["Farmer Jeff", "2:40"],
-      ["Inverse Dimensions", "4:21"],
-      ["Cannons from Lower Deck", "3:53"],
-      ["Wizard’s Bar", "3:58"]
-    ])
   ];
 
   // Cross-album Favorites collection, presented as its own album (built from
@@ -300,7 +300,7 @@
   var current = 0;                  // selected track within that album
   var loaded = -1;                  // track whose blob is in the audio element (-1 = none)
   var token = 0;                    // guards against out-of-order loads
-  var vocalMode = false;            // version toggle state (Genesis only for now)
+  var vocalMode = true;             // version toggle state: Vocal is the default; tracks without a vocal version fall back to instrumental automatically
   // FUTURE: vocal versions register here as { albumId: { trackIndex: "file.mp3" } }.
   // While a track has no entry, flipping the toggle changes nothing about playback.
   var VOCAL_FILES = { genesis: { 1: "track2v.mp3", 2: "track3v.mp3", 3: "track4v.mp3", 7: "track8v.mp3" } };
